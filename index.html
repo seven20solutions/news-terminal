@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>news-terminal</title>
     <style>
       @font-face {
@@ -80,6 +80,7 @@
         color: var(--muted);
       }
 
+      .status-bar.status-waiting,
       .status-bar .prompt.status-waiting {
         animation: statusPulse 1.2s ease-in-out infinite;
       }
@@ -870,6 +871,7 @@
       const menuFeedList = document.getElementById("menu-feed-list");
       const menuClose = document.querySelector(".menu-close");
       const statusBar = document.querySelector(".prompt");
+      const statusContainer = document.querySelector(".status-bar");
       const articleFull = document.getElementById("article-full");
       const articlePreview = document.getElementById("article-preview");
       const proxyTemplateInput = document.getElementById("proxy-template");
@@ -1188,18 +1190,18 @@
         }
         const excerpt = text.slice(0, 2000);
         const payload = {
-          model: "gpt-5-mini",
+          model: "gpt-5-nano",
           input: [
             { role: "system", content: "You are a helpful assistant specializing in clean article summaries." },
             {
               role: "user",
               content:
-                "Extract and return only the main body of this article with clear headings for each section to make it easy to scan. Remove navigation, headers, footers, sidebars, ads, and unrelated links. Keep paragraphs intact and do not add commentary.\n\n" +
+                "Summarise the contents of this news article into a concise list of bullet points. Remove navigation, headers, footers, sidebars, ads, and unrelated links, and keep only the key story details. Ensure each bullet is clear and informative.\n\n" +
                 excerpt,
             },
           ],
           tools: [{ type: "web_search_preview", search_context_size: "medium" }],
-          max_output_tokens: 2000,
+          max_output_tokens: 3000,
           text: { format: { type: "text" } },
         };
         const safeKey = (state.openAiKey || "").trim();
@@ -1235,15 +1237,19 @@
         if (!outputText) {
           throw new Error("OpenAI response contained no text");
         }
-        const cleaned = outputText
+        const cleaning = outputText
           .split("\n")
-          .filter((line) => !line.includes("<system-reminder>"))
-          .join("\n")
-          .trim();
-        if (!cleaned) {
-          throw new Error("OpenAI response contained no readable text");
+          .map((line) => line.replace(/<[^>]+>/g, "").trim())
+          .filter((line) => line)
+          .join("\n");
+        if (cleaning) {
+          return cleaning;
         }
-        return cleaned;
+        const fallback = outputText.replace(/<[^>]+>/g, "").trim();
+        if (fallback) {
+          return fallback;
+        }
+        throw new Error("OpenAI response contained no readable text");
       }
 
       function handleSaveOpenAi() {
@@ -1295,8 +1301,10 @@
         statusBar.textContent = text;
         if (busy) {
           statusBar.classList.add("status-waiting");
+          statusContainer.classList.add("status-waiting");
         } else {
           statusBar.classList.remove("status-waiting");
+          statusContainer.classList.remove("status-waiting");
         }
       }
 

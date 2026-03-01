@@ -80,6 +80,15 @@
         color: var(--muted);
       }
 
+      .status-bar .prompt.status-waiting {
+        animation: statusPulse 1.2s ease-in-out infinite;
+      }
+
+      @keyframes statusPulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.2; }
+      }
+
       .caret {
         color: var(--accent);
         width: 1ch;
@@ -383,7 +392,7 @@
       }
 
       .article-full-text p {
-        margin: 0;
+        margin: 12px 0;
       }
 
       .article-full-text a {
@@ -428,11 +437,14 @@
         position: fixed;
         inset: 0;
         background: rgba(1, 68, 170, 0.95);
-        padding: 2rem;
+        padding: 1.5rem;
         display: none;
         flex-direction: column;
         gap: 1rem;
         z-index: 10;
+        overflow-y: auto;
+        max-height: 100vh;
+        -webkit-overflow-scrolling: touch;
       }
 
       .menu-overlay.active {
@@ -665,6 +677,18 @@
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
           max-height: calc(100vh - 6rem);
+        }
+
+        .article-full-text {
+          font-size: 1rem;
+        }
+
+        .article-preview {
+          display: none;
+        }
+
+        .article-full-text img {
+          display: none;
         }
 
         .tab-bar {
@@ -1111,7 +1135,7 @@
         proxyMessage.textContent = "";
         persistState();
         updateProxyStatusLine();
-        setStatus("Custom proxy saved.");
+          setStatus("Custom proxy saved.");
         if (state.selectedFeedId) fetchFeed(state.selectedFeedId);
       }
 
@@ -1162,6 +1186,7 @@
         if (!state.hasOpenAiKey) {
           throw new Error("OpenAI key is missing");
         }
+        const excerpt = text.slice(0, 2000);
         const payload = {
           model: "gpt-5-mini",
           input: [
@@ -1169,8 +1194,8 @@
             {
               role: "user",
               content:
-                "Extract and return only the main body of this article. Remove navigation, headers, footers, sidebars, ads, and unrelated links. Keep paragraphs intact and do not add commentary.\n\n" +
-                text,
+                "Extract and return only the main body of this article with clear headings for each section to make it easy to scan. Remove navigation, headers, footers, sidebars, ads, and unrelated links. Keep paragraphs intact and do not add commentary.\n\n" +
+                excerpt,
             },
           ],
           tools: [{ type: "web_search_preview", search_context_size: "medium" }],
@@ -1254,6 +1279,7 @@
           return cached.raw;
         }
         updateArticleStatus("Loading the full article via Jina…");
+        setStatus("Fetching article via Jina...", true);
         const response = await fetch(`${jinaProxy}${link}`);
         if (!response.ok) {
           throw new Error(`Jina proxy failed (${response.status})`);
@@ -1265,8 +1291,13 @@
         return result;
       }
 
-      function setStatus(text) {
+      function setStatus(text, busy = false) {
         statusBar.textContent = text;
+        if (busy) {
+          statusBar.classList.add("status-waiting");
+        } else {
+          statusBar.classList.remove("status-waiting");
+        }
       }
 
       function createId(url) {
@@ -1529,12 +1560,12 @@
         if (!feed) return;
         const mode = state.proxyModeByFeed[feedId] || "auto";
         const label = state.usingCustomProxy ? "custom proxy" : mode === "proxy" ? "proxy" : "direct";
-        setStatus(`Fetching feed (${label})`);
+        setStatus(`Fetching feed (${label})`, true);
         try {
-        const fallbackLabel = state.usingCustomProxy ? "custom proxy" : "proxy";
-        const { response, fromProxy } = await attemptFetch(feed, mode, () =>
-          setStatus(`Direct fetch failed — retrying via ${fallbackLabel}...`)
-        );
+          const fallbackLabel = state.usingCustomProxy ? "custom proxy" : "proxy";
+          const { response, fromProxy } = await attemptFetch(feed, mode, () =>
+            setStatus(`Direct fetch failed — retrying via ${fallbackLabel}...`, true)
+          );
           if (!response.ok) {
             throw new Error(`Failed to load feed (${response.status})`);
           }
@@ -1719,7 +1750,7 @@
         if (!link) return;
         readerDownload.disabled = true;
         toggleCleanButton.disabled = true;
-        setStatus("Downloading article...");
+        setStatus("Downloading article...", true);
         try {
           const raw = await loadJinaArticle(link);
           articleTextCache[link] = articleTextCache[link] || {};

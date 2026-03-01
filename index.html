@@ -140,6 +140,25 @@
         min-height: 0;
       }
 
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .panel-button {
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(1, 68, 170, 0.9);
+        color: var(--text);
+        padding: 0.35rem 0.9rem;
+        letter-spacing: 0.08em;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+        cursor: pointer;
+      }
+
       .panel h2 {
         margin: 0;
         font-size: 1rem;
@@ -316,6 +335,24 @@
 
       .article-preview.hidden {
         display: none;
+      }
+
+      .article-audio {
+        margin-top: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+
+      .article-audio audio {
+        width: 100%;
+      }
+
+      .article-audio a {
+        color: var(--accent);
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-decoration: underline;
       }
 
       .reader-actions {
@@ -771,13 +808,17 @@
           <ul class="list" id="feed-list"></ul>
         </section>
         <section class="panel" id="article-list-screen">
-          <h2>Articles</h2>
+          <div class="panel-header">
+            <h2>Articles</h2>
+            <button class="panel-button" id="articles-refresh" type="button">refresh (R)</button>
+          </div>
           <ul class="list" id="article-list"></ul>
         </section>
         <section class="panel" id="article-view-screen">
           <h2>Reader</h2>
         <div class="article-metadata" id="article-meta"></div>
         <div class="article-preview hidden" id="article-preview" aria-hidden="true"></div>
+        <div class="article-audio" id="article-audio"></div>
         <div class="article-body" id="article-body">
           <p>Select an article to read.</p>
         </div>
@@ -854,6 +895,7 @@
         imageProxy: "news-terminal-image-proxy",
         customProxy: "news-terminal-custom-proxy",
         openAi: "news-terminal-openai-key",
+        playback: "news-terminal-playback",
       };
 
       const defaultProxyTemplate = "https://api.allorigins.win/raw?url=%s";
@@ -874,6 +916,7 @@
       const statusContainer = document.querySelector(".status-bar");
       const articleFull = document.getElementById("article-full");
       const articlePreview = document.getElementById("article-preview");
+      const articleAudio = document.getElementById("article-audio");
       const proxyTemplateInput = document.getElementById("proxy-template");
       const saveProxyButton = document.getElementById("save-proxy");
       const resetProxyButton = document.getElementById("reset-proxy");
@@ -890,6 +933,7 @@
       const tabButtons = document.querySelectorAll(".tab-button");
       const tabIndicator = document.getElementById("tab-indicator");
       const refreshButton = document.getElementById("refresh-feed");
+      const articlesRefreshButton = document.getElementById("articles-refresh");
       const clearButton = document.getElementById("clear-storage");
 
       let state = {
@@ -909,8 +953,10 @@
         hasOpenAiKey: false,
         articleViewMode: "clean",
         activePanel: 0,
+        playbackProgress: {},
       };
       const articleTextCache = {};
+      const playbackLastSaved = {};
 
       function loadState() {
         const storedFeeds = localStorage.getItem(STORAGE_KEYS.feeds);
@@ -925,6 +971,8 @@
         state.imageProxyByFeed = storedImageProxy ? JSON.parse(storedImageProxy) : {};
         state.customProxyTemplate = storedCustomProxy ? storedCustomProxy : null;
         state.usingCustomProxy = Boolean(state.customProxyTemplate);
+        const storedPlayback = localStorage.getItem(STORAGE_KEYS.playback);
+        state.playbackProgress = storedPlayback ? JSON.parse(storedPlayback) : {};
         const storedOpenAiKey = localStorage.getItem(STORAGE_KEYS.openAi);
         state.openAiKey = storedOpenAiKey || null;
         state.hasOpenAiKey = Boolean(storedOpenAiKey);
@@ -943,6 +991,7 @@
         localStorage.setItem(STORAGE_KEYS.imageProxy, JSON.stringify(state.imageProxyByFeed));
         localStorage.setItem(STORAGE_KEYS.customProxy, state.customProxyTemplate || "");
         localStorage.setItem(STORAGE_KEYS.openAi, state.openAiKey || "");
+        localStorage.setItem(STORAGE_KEYS.playback, JSON.stringify(state.playbackProgress));
         if (state.selectedFeedId) {
           localStorage.setItem(STORAGE_KEYS.lastFeed, state.selectedFeedId);
         }
@@ -1161,6 +1210,12 @@
       function renderSettings() {
         updateProxyStatusLine();
         updateOpenAiStatusLine();
+      }
+
+      function refreshCurrentFeed() {
+        if (state.selectedFeedId) {
+          fetchFeed(state.selectedFeedId);
+        }
       }
 
       function renderActivePanel() {
@@ -1479,7 +1534,8 @@
           updateArticleStatus("Select an article and press D for the full version.");
           return;
         }
-        articleMeta.innerHTML = `${article.source ? `${article.source} · ` : ""}${new Date(article.published || Date.now()).toLocaleString()}`;
+        const audioNote = article.audio?.url ? " · Audio available" : "";
+        articleMeta.innerHTML = `${article.source ? `${article.source} · ` : ""}${new Date(article.published || Date.now()).toLocaleString()}${audioNote}`;
         articleBody.innerHTML = article.summary || "<p>No summary available.</p>";
         readerView.disabled = !article.link;
         readerDownload.disabled = !article.link;
@@ -1487,6 +1543,44 @@
         readerDownload.dataset.link = article.link;
         updateArticleStatus("Tap D (or the button) to load the full article via Jina or V to open the source.");
         updateArticlePreview(article.image, state.selectedFeedId);
+        renderAudioPlayer(article);
+      }
+
+      function renderAudioPlayer(article) {
+        if (!articleAudio) return;
+        if (!article?.audio?.url) {
+          articleAudio.innerHTML = "";
+          return;
+        }
+        const safeUrl = escapeHtml(article.audio.url);
+        const type = article.audio.type || "audio/mpeg";
+        articleAudio.innerHTML = `
+          <audio id="reader-audio" controls preload="metadata">
+            <source src="${safeUrl}" type="${type}" />
+          </audio>
+          <a href="${safeUrl}" download>Download episode</a>
+        `;
+        const audioElement = document.getElementById("reader-audio");
+        if (!audioElement) return;
+        const playbackKey = article.link || article.title || "podcast";
+        const saved = state.playbackProgress[playbackKey];
+        if (saved && saved < (audioElement.duration || Infinity)) {
+          audioElement.currentTime = saved;
+        }
+        audioElement.addEventListener("timeupdate", () => {
+          const time = audioElement.currentTime;
+          const last = playbackLastSaved[playbackKey] || 0;
+          if (Math.abs(time - last) > 5) {
+            playbackLastSaved[playbackKey] = time;
+            state.playbackProgress[playbackKey] = time;
+            persistState();
+          }
+        });
+        audioElement.addEventListener("ended", () => {
+          delete state.playbackProgress[playbackKey];
+          playbackLastSaved[playbackKey] = 0;
+          persistState();
+        });
       }
 
       function selectFeed(feedId) {
@@ -1556,6 +1650,28 @@
         return null;
       }
 
+      function extractAudioInfo(item) {
+        const MRSS_NS = "http://search.yahoo.com/mrss/";
+        const mediaContentNodes = Array.from(item.getElementsByTagNameNS(MRSS_NS, "content"));
+        const audioNode = mediaContentNodes.find((node) => (node.getAttribute("type") || "").startsWith("audio/"));
+        const enclosure = item.querySelector("enclosure");
+        if (audioNode) {
+          return {
+            url: audioNode.getAttribute("url")?.trim() || null,
+            type: audioNode.getAttribute("type") || "audio/mpeg",
+            length: audioNode.getAttribute("length") || null,
+          };
+        }
+        if (enclosure && (enclosure.getAttribute("type") || "").startsWith("audio/")) {
+          return {
+            url: enclosure.getAttribute("url")?.trim() || null,
+            type: enclosure.getAttribute("type") || "audio/mpeg",
+            length: enclosure.getAttribute("length") || null,
+          };
+        }
+        return null;
+      }
+
       function needsImageRefresh(feedId) {
         if (!feedId) return false;
         const articles = state.articles[feedId] || [];
@@ -1598,6 +1714,7 @@
                 : "",
               source: feed.title || feed.url,
               image: extractImageUrl(item),
+              audio: extractAudioInfo(item),
             };
           });
           state.articles[feedId] = parsed;
@@ -1689,10 +1806,13 @@
       menuTrigger.addEventListener("click", openMenu);
       menuClose.addEventListener("click", closeMenu);
       refreshButton.addEventListener("click", () => {
-        if (state.selectedFeedId) {
-          fetchFeed(state.selectedFeedId);
-        }
+        refreshCurrentFeed();
       });
+      if (articlesRefreshButton) {
+        articlesRefreshButton.addEventListener("click", () => {
+          refreshCurrentFeed();
+        });
+      }
       clearButton.addEventListener("click", () => {
         localStorage.clear();
         state = {
@@ -1871,6 +1991,9 @@
         }
         if (lowerKey === "d" && !readerDownload.disabled) {
           readerDownload.click();
+        }
+        if (lowerKey === "r") {
+          refreshCurrentFeed();
         }
       });
 

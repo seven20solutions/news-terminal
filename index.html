@@ -432,6 +432,56 @@
         font-family: "Topaz A1200", "IBM Plex Mono", monospace;
       }
 
+      .proxy-settings {
+        border-top: 1px solid rgba(255, 255, 255, 0.25);
+        padding-top: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .proxy-settings input {
+        flex: 1;
+        background: rgba(0, 0, 0, 0.25);
+      }
+
+      .proxy-settings .proxy-actions {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+      }
+
+      .proxy-settings .proxy-actions button,
+      .proxy-settings .proxy-presets button {
+        flex: 1 1 150px;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        background: rgba(2, 35, 88, 0.6);
+        color: var(--text);
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.5rem 0.9rem;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+      }
+
+      .proxy-settings .proxy-status {
+        font-size: 0.8rem;
+        color: var(--muted);
+        letter-spacing: 0.06em;
+      }
+
+      .proxy-settings .proxy-helper {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      .proxy-settings .proxy-message {
+        color: #ee8802;
+        font-size: 0.75rem;
+        min-height: 1.1rem;
+      }
+
       .menu-feed-list {
         border: 1px solid var(--border);
         border-radius: 0.75rem;
@@ -577,6 +627,21 @@
             <button id="clear-storage" type="button">Reset data</button>
           </div>
         </div>
+        <div class="proxy-settings">
+          <h3>Proxy settings</h3>
+          <p class="proxy-helper">Leave blank to keep the default AllOrigins proxy. Use <code>%s</code> where the feed/image URL should go.</p>
+          <div class="proxy-actions">
+            <input id="proxy-template" type="text" placeholder="https://cors-anywhere.herokuapp.com/%s" />
+            <button id="save-proxy" type="button">Save proxy</button>
+          </div>
+          <div class="proxy-presets">
+            <button data-template="https://api.allorigins.win/raw?url=%s" type="button">AllOrigins</button>
+            <button data-template="https://cors-anywhere.herokuapp.com/%s" type="button">CORS Anywhere</button>
+          </div>
+          <div class="proxy-status" id="proxy-status">Current proxy: default (https://api.allorigins.win/raw?url=%s)</div>
+          <div class="proxy-message" id="proxy-message"></div>
+          <button id="reset-proxy" type="button">Reset to default</button>
+        </div>
       </div>
     </main>
     <script>
@@ -586,9 +651,10 @@
         lastFeed: "news-terminal-selected-feed",
         proxyModes: "news-terminal-proxy-modes",
         imageProxy: "news-terminal-image-proxy",
+        customProxy: "news-terminal-custom-proxy",
       };
 
-      const proxyBase = "https://api.allorigins.win/raw?url=";
+      const defaultProxyTemplate = "https://api.allorigins.win/raw?url=%s";
       const jinaProxy = "https://r.jina.ai/http://";
 
       const menu = document.getElementById("menu");
@@ -605,6 +671,12 @@
       const statusBar = document.querySelector(".prompt");
       const articleFull = document.getElementById("article-full");
       const articlePreview = document.getElementById("article-preview");
+      const proxyTemplateInput = document.getElementById("proxy-template");
+      const saveProxyButton = document.getElementById("save-proxy");
+      const resetProxyButton = document.getElementById("reset-proxy");
+      const proxyStatus = document.getElementById("proxy-status");
+      const proxyMessage = document.getElementById("proxy-message");
+      const proxyPresetButtons = document.querySelectorAll(".proxy-presets button");
       const refreshButton = document.getElementById("refresh-feed");
       const clearButton = document.getElementById("clear-storage");
 
@@ -618,6 +690,8 @@
         focusZone: "feeds",
         proxyModeByFeed: {},
         imageProxyByFeed: {},
+        customProxyTemplate: null,
+        usingCustomProxy: false,
       };
       const jinaCache = {};
 
@@ -627,10 +701,13 @@
         const storedLast = localStorage.getItem(STORAGE_KEYS.lastFeed);
         const storedProxyModes = localStorage.getItem(STORAGE_KEYS.proxyModes);
         const storedImageProxy = localStorage.getItem(STORAGE_KEYS.imageProxy);
+        const storedCustomProxy = localStorage.getItem(STORAGE_KEYS.customProxy);
         state.feeds = storedFeeds ? JSON.parse(storedFeeds) : [];
         state.articles = storedArticles ? JSON.parse(storedArticles) : {};
         state.proxyModeByFeed = storedProxyModes ? JSON.parse(storedProxyModes) : {};
         state.imageProxyByFeed = storedImageProxy ? JSON.parse(storedImageProxy) : {};
+        state.customProxyTemplate = storedCustomProxy ? storedCustomProxy : null;
+        state.usingCustomProxy = Boolean(state.customProxyTemplate);
         if (storedLast && state.feeds.find((feed) => feed.id === storedLast)) {
           state.selectedFeedId = storedLast;
         }
@@ -644,6 +721,7 @@
         localStorage.setItem(STORAGE_KEYS.articles, JSON.stringify(state.articles));
         localStorage.setItem(STORAGE_KEYS.proxyModes, JSON.stringify(state.proxyModeByFeed));
         localStorage.setItem(STORAGE_KEYS.imageProxy, JSON.stringify(state.imageProxyByFeed));
+        localStorage.setItem(STORAGE_KEYS.customProxy, state.customProxyTemplate || "");
         if (state.selectedFeedId) {
           localStorage.setItem(STORAGE_KEYS.lastFeed, state.selectedFeedId);
         }
@@ -656,6 +734,15 @@
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
+      }
+
+      function formatProxyUrl(targetUrl) {
+        const template = (state.customProxyTemplate || defaultProxyTemplate).trim();
+        const encoded = encodeURIComponent(targetUrl);
+        if (template.includes("%s")) {
+          return template.replace("%s", encoded);
+        }
+        return `${template}${encoded}`;
       }
 
       function updateArticleStatus(message) {
@@ -749,14 +836,8 @@
         updateArticleStatus("Full article loaded through Jina.");
       }
 
-      function proxyImageUrl(url) {
-        if (!url || url.includes(proxyBase)) {
-          return url;
-        }
-        return `${proxyBase}${encodeURIComponent(url)}`;
-      }
-
       function shouldProxyPreview(feedId) {
+        if (state.usingCustomProxy) return true;
         if (!feedId) return false;
         if (state.proxyModeByFeed[feedId] === "proxy") return true;
         return Boolean(state.imageProxyByFeed[feedId]);
@@ -764,20 +845,69 @@
 
       function updateArticlePreview(imageUrl, feedId) {
         if (!imageUrl) {
-        articlePreview.classList.add("hidden");
-        articlePreview.setAttribute("aria-hidden", "true");
-        articlePreview.innerHTML = "";
-        return;
-      }
+          articlePreview.classList.add("hidden");
+          articlePreview.setAttribute("aria-hidden", "true");
+          articlePreview.innerHTML = "";
+          return;
+        }
         const useProxy = shouldProxyPreview(feedId);
-        const finalImage = useProxy ? proxyImageUrl(imageUrl) : imageUrl;
+        const finalImage = useProxy ? formatProxyUrl(imageUrl) : imageUrl;
         articlePreview.classList.remove("hidden");
         articlePreview.setAttribute("aria-hidden", "false");
-        const statusSnippet = useProxy ? `<span class="preview-status active">PROXY IMAGE</span>` : "";
+        const badge = state.usingCustomProxy ? "PROXY IMAGE (custom)" : "PROXY IMAGE";
+        const statusSnippet = useProxy ? `<span class="preview-status active">${badge}</span>` : "";
         articlePreview.innerHTML = `
           <img src="${finalImage}" alt="Article preview" loading="lazy" />
           ${statusSnippet}
         `;
+      }
+
+      function updateProxyStatusLine() {
+        const descriptor = state.customProxyTemplate
+          ? state.customProxyTemplate
+          : `default (${defaultProxyTemplate})`;
+        proxyStatus.textContent = `Current proxy: ${descriptor}`;
+        proxyTemplateInput.value = state.customProxyTemplate || "";
+      }
+
+      function handleSaveProxy() {
+        const value = proxyTemplateInput.value.trim();
+        if (!value) {
+          state.customProxyTemplate = null;
+          state.usingCustomProxy = false;
+          proxyMessage.textContent = "";
+          persistState();
+          updateProxyStatusLine();
+          setStatus("Proxy reset to default.");
+          if (state.selectedFeedId) fetchFeed(state.selectedFeedId);
+          return;
+        }
+        if (!/^https?:\/\//i.test(value)) {
+          proxyMessage.textContent = "Proxy must start with http:// or https://";
+          return;
+        }
+        state.customProxyTemplate = value;
+        state.usingCustomProxy = true;
+        proxyMessage.textContent = "";
+        persistState();
+        updateProxyStatusLine();
+        setStatus("Custom proxy saved.");
+        if (state.selectedFeedId) fetchFeed(state.selectedFeedId);
+      }
+
+      function handleResetProxy() {
+        proxyTemplateInput.value = "";
+        state.customProxyTemplate = null;
+        state.usingCustomProxy = false;
+        proxyMessage.textContent = "";
+        persistState();
+        updateProxyStatusLine();
+        setStatus("Proxy reset to default.");
+        if (state.selectedFeedId) fetchFeed(state.selectedFeedId);
+      }
+
+      function renderProxySettings() {
+        updateProxyStatusLine();
       }
 
       async function loadJinaArticle(link) {
@@ -997,7 +1127,7 @@
 
       async function attemptFetch(feed, mode, onFallback) {
         const proxyFetch = async () => {
-          const response = await fetch(`${proxyBase}${feed.url}`);
+          const response = await fetch(formatProxyUrl(feed.url));
           return { response, fromProxy: true };
         };
 
@@ -1058,10 +1188,12 @@
         const feed = state.feeds.find((item) => item.id === feedId);
         if (!feed) return;
         const mode = state.proxyModeByFeed[feedId] || "auto";
-        setStatus(`Fetching feed (${mode === "proxy" ? "proxy" : "direct"})`);
+        const label = state.usingCustomProxy ? "custom proxy" : mode === "proxy" ? "proxy" : "direct";
+        setStatus(`Fetching feed (${label})`);
         try {
+        const fallbackLabel = state.usingCustomProxy ? "custom proxy" : "proxy";
         const { response, fromProxy } = await attemptFetch(feed, mode, () =>
-          setStatus("Direct fetch failed — retrying via proxy...")
+          setStatus(`Direct fetch failed — retrying via ${fallbackLabel}...`)
         );
           if (!response.ok) {
             throw new Error(`Failed to load feed (${response.status})`);
@@ -1092,7 +1224,7 @@
           state.articles[feedId] = parsed;
           state.imageProxyByFeed[feedId] = fromProxy;
           persistState();
-          const finalMode = fromProxy ? "proxy" : "direct";
+          const finalMode = fromProxy ? (state.usingCustomProxy ? "custom proxy" : "proxy") : "direct";
           const fallbackNote = mode === "auto" && fromProxy ? " (fallback)" : "";
           setStatus(`Feed refreshed (${finalMode}${fallbackNote})`);
         } catch (error) {
@@ -1157,6 +1289,7 @@
         renderFeeds();
         renderArticles();
         renderArticleView();
+        renderProxySettings();
       }
 
       document.getElementById("feed-form").addEventListener("submit", (event) => {
@@ -1189,9 +1322,25 @@
           focusZone: "feeds",
           proxyModeByFeed: {},
           imageProxyByFeed: {},
+          customProxyTemplate: null,
+          usingCustomProxy: false,
         };
         renderApp();
+        proxyMessage.textContent = "";
+        updateProxyStatusLine();
         setStatus("Storage cleared.");
+      });
+
+      saveProxyButton.addEventListener("click", handleSaveProxy);
+      resetProxyButton.addEventListener("click", handleResetProxy);
+      proxyTemplateInput.addEventListener("input", () => {
+        proxyMessage.textContent = "";
+      });
+      proxyPresetButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          proxyTemplateInput.value = button.dataset.template;
+          proxyMessage.textContent = "Press Save to apply this preset.";
+        });
       });
 
       readerBack.addEventListener("click", () => {

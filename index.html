@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>news-terminal</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0144aa;
+        --text: #ffffff;
+        --accent: #ee8802;
+        --panel: rgba(1, 68, 170, 0.9);
+        --panel-strong: rgba(0, 45, 110, 0.9);
+        --muted: rgba(255, 255, 255, 0.65);
+        --border: rgba(255, 255, 255, 0.25);
+        font-family: "IBM Plex Mono", "Space Mono", "Courier New", monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #01358f;
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+        align-items: stretch;
+        font-family: inherit;
+      }
+
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: radial-gradient(circle at 10% 10%, rgba(238, 136, 2, 0.08), transparent 40%),
+          radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.04), transparent 35%);
+        pointer-events: none;
+        mix-blend-mode: screen;
+      }
+
+      main.shell {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, var(--bg), #021f6c 70%);
+        border-left: 6px solid rgba(255, 255, 255, 0.2);
+        border-right: 6px solid rgba(255, 255, 255, 0.2);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .status-bar {
+        font-size: 0.9rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 1rem;
+      }
+
+      .status-bar span:first-child {
+        color: var(--muted);
+      }
+
+      .caret {
+        color: var(--accent);
+        width: 1ch;
+        display: inline-block;
+      }
+
+      header .prompt::after {
+        content: "_";
+        margin-left: 0.4rem;
+        animation: blink 1.2s steps(2, start) infinite;
+      }
+
+      @keyframes blink {
+        to {
+          opacity: 0;
+        }
+      }
+
+      .grid {
+        display: grid;
+        gap: 1rem;
+        flex: 1;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        overflow: hidden;
+      }
+
+      section.panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        min-height: 280px;
+      }
+
+      .panel h2 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.75rem;
+      }
+
+      ul.list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        overflow: auto;
+        flex: 1;
+      }
+
+      .list li {
+        padding: 0.65rem 0.75rem;
+        border-radius: 0.5rem;
+        background: rgba(2, 35, 88, 0.7);
+        border: 1px solid transparent;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        cursor: pointer;
+        transition: border 0.2s ease, background 0.2s ease;
+      }
+
+      .list li[data-selected="true"] {
+        border-color: var(--accent);
+        background: rgba(238, 136, 2, 0.1);
+      }
+
+      .list li:hover,
+      .list li:focus-visible {
+        border-color: rgba(255, 255, 255, 0.4);
+      }
+
+      .list li.focused {
+        border-color: rgba(238, 136, 2, 0.9);
+        box-shadow: 0 0 0 1px rgba(238, 136, 2, 0.4);
+      }
+
+      .mode-chip {
+        width: 1.2rem;
+        height: 1.2rem;
+        border-radius: 0.4rem;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        letter-spacing: 0.15em;
+        color: var(--muted);
+      }
+
+      .mode-chip.proxy {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .list li.focused {
+        border-color: rgba(238, 136, 2, 0.9);
+        box-shadow: 0 0 0 1px rgba(238, 136, 2, 0.4);
+      }
+
+      .list li span.label {
+        flex: 1;
+        margin-left: 0.6rem;
+      }
+
+      .article-metadata {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .article-body {
+        margin-top: 1rem;
+        flex: 1;
+        overflow-y: auto;
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+
+      .article-body p {
+        margin-top: 0;
+      }
+
+      .menu-trigger {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.4rem 1rem;
+        background: transparent;
+        color: var(--text);
+        font-size: 0.85rem;
+        cursor: pointer;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .menu-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(1, 68, 170, 0.95);
+        padding: 2rem;
+        display: none;
+        flex-direction: column;
+        gap: 1rem;
+        z-index: 10;
+      }
+
+      .menu-overlay.active {
+        display: flex;
+      }
+
+      .menu-overlay h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: var(--text);
+      }
+
+      .menu-overlay form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+      }
+
+      .menu-overlay input,
+      .menu-overlay button {
+        font-family: inherit;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        padding: 0.6rem;
+        background: rgba(2, 35, 88, 0.6);
+        color: var(--text);
+      }
+
+      .menu-actions {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+
+      .menu-actions button {
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        background: rgba(238, 136, 2, 0.1);
+        color: var(--text);
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.6rem 1.2rem;
+      }
+
+      .menu-feed-list {
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        max-height: 220px;
+        overflow: auto;
+      }
+
+      .menu-feed-list button.delete {
+        background: transparent;
+        color: var(--accent);
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        letter-spacing: 0.1em;
+      }
+
+      .menu-feed-row {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        padding-bottom: 0.8rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .menu-feed-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      .menu-feed-row-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .menu-feed-mode-label {
+        font-size: 0.7rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .mode-toggle {
+        display: flex;
+        gap: 0.4rem;
+      }
+
+      .mode-toggle button {
+        flex: 1;
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        padding: 0.45rem 0.6rem;
+        background: rgba(2, 35, 88, 0.6);
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .mode-toggle button.active {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .menu-close {
+        align-self: flex-end;
+        border: none;
+        background: transparent;
+        color: var(--accent);
+        font-size: 0.9rem;
+        cursor: pointer;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      @media (max-width: 768px) {
+        main.shell {
+          padding: 1rem;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell" aria-live="polite">
+      <div class="status-bar">
+        <span class="prompt" aria-label="command prompt">news-terminal:~$</span>
+        <button class="menu-trigger" type="button">menu (m)</button>
+      </div>
+      <div class="grid">
+        <section class="panel" id="feed-screen">
+          <h2>Feeds</h2>
+          <ul class="list" id="feed-list"></ul>
+        </section>
+        <section class="panel" id="article-list-screen">
+          <h2>Articles</h2>
+          <ul class="list" id="article-list"></ul>
+        </section>
+        <section class="panel" id="article-view-screen">
+          <h2>Reader</h2>
+          <div class="article-metadata" id="article-meta"></div>
+          <div class="article-body" id="article-body">
+            <p>Select an article to read.</p>
+          </div>
+          <div class="menu-actions">
+            <button id="reader-back" type="button">Back (h)</button>
+            <button id="reader-open" type="button">Open Source</button>
+          </div>
+        </section>
+      </div>
+      <div class="menu-overlay" id="menu">
+        <button class="menu-close" type="button">Close (Esc)</button>
+        <div>
+          <h3>Add a feed</h3>
+          <form id="feed-form">
+            <input type="url" id="feed-url" placeholder="https://example.com/rss" required />
+            <input type="text" id="feed-label" placeholder="Optional label" />
+            <button type="submit">Add feed</button>
+          </form>
+        </div>
+        <div>
+          <h3>Saved feeds</h3>
+          <div class="menu-feed-list" id="menu-feed-list"></div>
+        </div>
+        <div>
+          <h3>Actions</h3>
+          <div class="menu-actions">
+            <button id="refresh-feed" type="button">Refresh feed</button>
+            <button id="clear-storage" type="button">Reset data</button>
+          </div>
+        </div>
+      </div>
+    </main>
+    <script>
+      const STORAGE_KEYS = {
+        feeds: "news-terminal-feeds",
+        articles: "news-terminal-articles",
+        lastFeed: "news-terminal-selected-feed",
+        proxyModes: "news-terminal-proxy-modes",
+      };
+
+      const proxyBase = "https://api.allorigins.win/raw?url=";
+
+      const menu = document.getElementById("menu");
+      const feedList = document.getElementById("feed-list");
+      const articleList = document.getElementById("article-list");
+      const articleMeta = document.getElementById("article-meta");
+      const articleBody = document.getElementById("article-body");
+      const menuTrigger = document.querySelector(".menu-trigger");
+      const readerBack = document.getElementById("reader-back");
+      const readerOpen = document.getElementById("reader-open");
+      const menuFeedList = document.getElementById("menu-feed-list");
+      const menuClose = document.querySelector(".menu-close");
+      const statusBar = document.querySelector(".prompt");
+      const refreshButton = document.getElementById("refresh-feed");
+      const clearButton = document.getElementById("clear-storage");
+
+      let state = {
+        feeds: [],
+        articles: {},
+        selectedFeedId: null,
+        selectedArticleIndex: 0,
+        focusFeedIndex: 0,
+        focusArticleIndex: 0,
+        focusZone: "feeds",
+        proxyModeByFeed: {},
+      };
+
+      function loadState() {
+        const storedFeeds = localStorage.getItem(STORAGE_KEYS.feeds);
+        const storedArticles = localStorage.getItem(STORAGE_KEYS.articles);
+        const storedLast = localStorage.getItem(STORAGE_KEYS.lastFeed);
+        const storedProxyModes = localStorage.getItem(STORAGE_KEYS.proxyModes);
+        state.feeds = storedFeeds ? JSON.parse(storedFeeds) : [];
+        state.articles = storedArticles ? JSON.parse(storedArticles) : {};
+        state.proxyModeByFeed = storedProxyModes ? JSON.parse(storedProxyModes) : {};
+        if (storedLast && state.feeds.find((feed) => feed.id === storedLast)) {
+          state.selectedFeedId = storedLast;
+        }
+        if (!state.selectedFeedId && state.feeds[0]) {
+          state.selectedFeedId = state.feeds[0].id;
+        }
+      }
+
+      function persistState() {
+        localStorage.setItem(STORAGE_KEYS.feeds, JSON.stringify(state.feeds));
+        localStorage.setItem(STORAGE_KEYS.articles, JSON.stringify(state.articles));
+        localStorage.setItem(STORAGE_KEYS.proxyModes, JSON.stringify(state.proxyModeByFeed));
+        if (state.selectedFeedId) {
+          localStorage.setItem(STORAGE_KEYS.lastFeed, state.selectedFeedId);
+        }
+      }
+
+      function setStatus(text) {
+        statusBar.textContent = text;
+      }
+
+      function createId(url) {
+        return btoa(url).replace(/=+$/, "");
+      }
+
+      function clampIndex(value, max) {
+        if (max < 0) return 0;
+        return Math.min(Math.max(value, 0), max);
+      }
+
+      function updateFeedFocus() {
+        const items = feedList.querySelectorAll("li");
+        if (!items.length) {
+          state.focusFeedIndex = 0;
+          return;
+        }
+        state.focusFeedIndex = clampIndex(state.focusFeedIndex, items.length - 1);
+        items.forEach((item, index) => {
+          item.classList.toggle("focused", index === state.focusFeedIndex);
+          if (index === state.focusFeedIndex) {
+            item.scrollIntoView({ block: "nearest" });
+          }
+        });
+      }
+
+      function updateArticleFocus() {
+        const items = articleList.querySelectorAll("li[data-article-index]");
+        if (!items.length) {
+          state.focusArticleIndex = 0;
+          return;
+        }
+        state.focusArticleIndex = clampIndex(state.focusArticleIndex, items.length - 1);
+        items.forEach((item, index) => {
+          item.classList.toggle("focused", index === state.focusArticleIndex);
+          if (index === state.focusArticleIndex) {
+            item.scrollIntoView({ block: "nearest" });
+          }
+        });
+      }
+
+      function setFeedMode(feedId, mode) {
+        state.proxyModeByFeed[feedId] = mode;
+        persistState();
+        renderFeeds();
+        if (state.selectedFeedId === feedId) {
+          fetchFeed(feedId);
+        }
+      }
+
+      function renderFeeds() {
+        feedList.innerHTML = "";
+        state.feeds.forEach((feed, index) => {
+          const listItem = document.createElement("li");
+          listItem.tabIndex = 0;
+          listItem.dataset.feedId = feed.id;
+          listItem.dataset.index = index;
+          listItem.dataset.selected = feed.id === state.selectedFeedId;
+          const mode = state.proxyModeByFeed[feed.id] || "auto";
+          const modeChar = mode === "proxy" ? "P" : "D";
+          const modeLabel = mode === "proxy" ? "Proxy" : "Direct";
+          listItem.innerHTML = `
+            <span class="caret">${state.selectedFeedId === feed.id ? ">" : " "}</span>
+            <span class="label">${feed.title || feed.url}</span>
+            <span class="mode-chip${mode === "proxy" ? " proxy" : ""}" aria-label="Mode: ${modeLabel}">${modeChar}</span>
+          `;
+          listItem.addEventListener("click", () => {
+            selectFeed(feed.id);
+          });
+          listItem.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+              selectFeed(feed.id);
+            }
+          });
+          feedList.appendChild(listItem);
+        });
+        updateFeedFocus();
+        renderMenuFeedList();
+      }
+
+      function renderMenuFeedList() {
+        menuFeedList.innerHTML = "";
+        if (!state.feeds.length) {
+          menuFeedList.textContent = "No feeds added yet.";
+          return;
+        }
+        state.feeds.forEach((feed) => {
+          const mode = state.proxyModeByFeed[feed.id] || "auto";
+          const row = document.createElement("div");
+          row.className = "menu-feed-row";
+          const top = document.createElement("div");
+          top.className = "menu-feed-row-top";
+          const label = document.createElement("span");
+          label.textContent = feed.title || feed.url;
+          const deleteBtn = document.createElement("button");
+          deleteBtn.className = "delete";
+          deleteBtn.type = "button";
+          deleteBtn.textContent = "Delete";
+          deleteBtn.addEventListener("click", () => {
+            removeFeed(feed.id);
+          });
+          top.append(label, deleteBtn);
+          const modeLabel = document.createElement("div");
+          modeLabel.className = "menu-feed-mode-label";
+          modeLabel.textContent = `Mode: ${mode === "proxy" ? "proxy" : "auto"}`;
+          const toggle = document.createElement("div");
+          toggle.className = "mode-toggle";
+          const directBtn = document.createElement("button");
+          directBtn.type = "button";
+          directBtn.textContent = "Direct";
+          directBtn.classList.toggle("active", mode === "auto");
+          directBtn.setAttribute("aria-pressed", mode === "auto");
+          directBtn.addEventListener("click", () => setFeedMode(feed.id, "auto"));
+          const proxyBtn = document.createElement("button");
+          proxyBtn.type = "button";
+          proxyBtn.textContent = "Proxy";
+          proxyBtn.classList.toggle("active", mode === "proxy");
+          proxyBtn.setAttribute("aria-pressed", mode === "proxy");
+          proxyBtn.addEventListener("click", () => setFeedMode(feed.id, "proxy"));
+          toggle.append(directBtn, proxyBtn);
+          row.append(top, modeLabel, toggle);
+          menuFeedList.appendChild(row);
+        });
+      }
+
+      function renderArticles() {
+        const articles = state.selectedFeedId ? state.articles[state.selectedFeedId] || [] : [];
+        articleList.innerHTML = "";
+        if (!articles.length) {
+          const placeholder = document.createElement("li");
+          placeholder.textContent = state.selectedFeedId ? "No articles yet. Pull to refresh." : "Select a feed.";
+          placeholder.style.opacity = "0.6";
+          placeholder.style.pointerEvents = "none";
+          articleList.append(placeholder);
+          updateArticleFocus();
+          return;
+        }
+        articles.forEach((article, index) => {
+          const item = document.createElement("li");
+          item.dataset.articleIndex = index;
+          item.tabIndex = 0;
+          item.innerHTML = `
+            <span class="caret">${state.selectedArticleIndex === index ? ">" : " "}</span>
+            <span class="label">
+              <strong>${article.title}</strong>
+              <div class="article-metadata">${new Date(article.published || Date.now()).toLocaleString()}</div>
+            </span>
+          `;
+          item.addEventListener("click", () => {
+            handleArticleSelect(index);
+          });
+          item.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+              handleArticleSelect(index);
+            }
+          });
+          articleList.appendChild(item);
+        });
+        updateArticleFocus();
+      }
+
+      function renderArticleView() {
+        const articles = state.selectedFeedId ? state.articles[state.selectedFeedId] || [] : [];
+        const article = articles[state.selectedArticleIndex];
+        if (!article) {
+          articleMeta.textContent = "No article selected.";
+          articleBody.innerHTML = "<p>Select an article to view it here.</p>";
+          readerOpen.disabled = true;
+          return;
+        }
+        articleMeta.innerHTML = `${article.source ? `${article.source} · ` : ""}${new Date(article.published || Date.now()).toLocaleString()}`;
+        articleBody.innerHTML = article.summary || "<p>No summary available.</p>";
+        readerOpen.disabled = false;
+        readerOpen.dataset.link = article.link;
+      }
+
+      function selectFeed(feedId) {
+        state.selectedFeedId = feedId;
+        state.selectedArticleIndex = 0;
+        state.focusArticleIndex = 0;
+        state.focusZone = "articles";
+        persistState();
+        renderApp();
+        if (!state.articles[feedId] || !state.articles[feedId].length) {
+          fetchFeed(feedId);
+        }
+      }
+
+      async function attemptFetch(feed, mode, onFallback) {
+        const proxyFetch = async () => {
+          const response = await fetch(`${proxyBase}${feed.url}`);
+          return { response, fromProxy: true };
+        };
+
+        if (mode === "proxy") {
+          return await proxyFetch();
+        }
+
+        try {
+          const response = await fetch(feed.url, { mode: "cors" });
+          if (response.type === "opaque") {
+            throw new Error("CORS blocked");
+          }
+          return { response, fromProxy: false };
+        } catch (error) {
+          if (onFallback) {
+            onFallback(error);
+          }
+          return await proxyFetch();
+        }
+      }
+
+      async function fetchFeed(feedId) {
+        const feed = state.feeds.find((item) => item.id === feedId);
+        if (!feed) return;
+        const mode = state.proxyModeByFeed[feedId] || "auto";
+        setStatus(`Fetching feed (${mode === "proxy" ? "proxy" : "direct"})`);
+        try {
+        const { response, fromProxy } = await attemptFetch(feed, mode, () =>
+          setStatus("Direct fetch failed — retrying via proxy...")
+        );
+          if (!response.ok) {
+            throw new Error(`Failed to load feed (${response.status})`);
+          }
+          const text = await response.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(text, "text/xml");
+          const items = Array.from(doc.querySelectorAll("item"));
+          const parsed = items.map((item) => {
+            const link = item.querySelector("link")?.textContent?.trim() || "";
+            const title = item.querySelector("title")?.textContent?.trim() || "Untitled";
+            const pubDate = item.querySelector("pubDate")?.textContent?.trim();
+            const description =
+              item.querySelector("content\\:encoded")?.textContent || item.querySelector("description")?.textContent || "";
+            return {
+              title,
+              link,
+              published: pubDate,
+              summary: description
+                ? description
+                    .replace(/\s+/g, " ")
+                    .replace(/<script[\s\S]*?<\/script>/gi, "")
+                : "",
+              source: feed.title || feed.url,
+            };
+          });
+          state.articles[feedId] = parsed;
+          persistState();
+          const finalMode = fromProxy ? "proxy" : "direct";
+          const fallbackNote = mode === "auto" && fromProxy ? " (fallback)" : "";
+          setStatus(`Feed refreshed (${finalMode}${fallbackNote})`);
+        } catch (error) {
+          setStatus(`Unable to fetch feed: ${error.message}`);
+        }
+        renderApp();
+      }
+
+      function handleArticleSelect(index) {
+        state.selectedArticleIndex = index;
+        state.focusArticleIndex = index;
+        state.focusZone = "articles";
+        renderArticles();
+        renderArticleView();
+      }
+
+      function addFeed(url, label) {
+        const id = createId(url);
+        if (state.feeds.find((feed) => feed.id === id)) {
+          setStatus("Feed already exists.");
+          return;
+        }
+        const feed = {
+          id,
+          url,
+          title: label,
+        };
+        state.feeds.push(feed);
+        state.proxyModeByFeed[feed.id] = "auto";
+        selectFeed(id);
+        persistState();
+        setStatus("Feed added.");
+        renderApp();
+        fetchFeed(id);
+        closeMenu();
+      }
+
+      function removeFeed(feedId) {
+        state.feeds = state.feeds.filter((feed) => feed.id !== feedId);
+        delete state.articles[feedId];
+        delete state.proxyModeByFeed[feedId];
+        if (state.selectedFeedId === feedId) {
+          state.selectedFeedId = state.feeds[0]?.id || null;
+        }
+        state.focusZone = "feeds";
+        state.focusFeedIndex = 0;
+        state.focusArticleIndex = 0;
+        persistState();
+        renderApp();
+      }
+
+      function openMenu() {
+        menu.classList.add("active");
+      }
+
+      function closeMenu() {
+        menu.classList.remove("active");
+      }
+
+      function renderApp() {
+        renderFeeds();
+        renderArticles();
+        renderArticleView();
+      }
+
+      document.getElementById("feed-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const urlInput = document.getElementById("feed-url");
+        const labelInput = document.getElementById("feed-label");
+        const url = urlInput.value.trim();
+        if (!url) return;
+        addFeed(url, labelInput.value.trim() || null);
+        urlInput.value = "";
+        labelInput.value = "";
+      });
+
+      menuTrigger.addEventListener("click", openMenu);
+      menuClose.addEventListener("click", closeMenu);
+      refreshButton.addEventListener("click", () => {
+        if (state.selectedFeedId) {
+          fetchFeed(state.selectedFeedId);
+        }
+      });
+      clearButton.addEventListener("click", () => {
+        localStorage.clear();
+        state = {
+          feeds: [],
+          articles: {},
+          selectedFeedId: null,
+          selectedArticleIndex: 0,
+          focusFeedIndex: 0,
+          focusArticleIndex: 0,
+          focusZone: "feeds",
+          proxyModeByFeed: {},
+        };
+        renderApp();
+        setStatus("Storage cleared.");
+      });
+
+      readerBack.addEventListener("click", () => {
+        state.focusZone = "articles";
+        updateArticleFocus();
+        articleList.querySelector("li[data-article-index]")?.focus();
+      });
+
+      readerOpen.addEventListener("click", () => {
+        const link = readerOpen.dataset.link;
+        if (link) {
+          window.open(link, "_blank", "noopener");
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (
+          ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(event.target.tagName)
+        )
+          return;
+        const key = event.key;
+        if (menu.classList.contains("active")) {
+          if (key === "Escape") {
+            closeMenu();
+          }
+          return;
+        }
+        if (key === "m" || key === ":") {
+          openMenu();
+          event.preventDefault();
+          return;
+        }
+        if (key === "Escape") {
+          return;
+        }
+        const downKeys = ["j", "ArrowDown"];
+        const upKeys = ["k", "ArrowUp"];
+        const backKeys = ["h", "ArrowLeft"];
+        const forwardKeys = ["l", "ArrowRight", "Enter"];
+        if (downKeys.includes(key)) {
+          event.preventDefault();
+          if (state.focusZone === "feeds") {
+            state.focusFeedIndex += 1;
+            updateFeedFocus();
+          } else {
+            state.focusArticleIndex += 1;
+            updateArticleFocus();
+          }
+        }
+        if (upKeys.includes(key)) {
+          event.preventDefault();
+          if (state.focusZone === "feeds") {
+            state.focusFeedIndex -= 1;
+            updateFeedFocus();
+          } else {
+            state.focusArticleIndex -= 1;
+            updateArticleFocus();
+          }
+        }
+        if (backKeys.includes(key)) {
+          event.preventDefault();
+          if (state.focusZone === "articles") {
+            state.focusZone = "feeds";
+            updateFeedFocus();
+          }
+        }
+        if (forwardKeys.includes(key)) {
+          event.preventDefault();
+          if (state.focusZone === "feeds") {
+            const items = feedList.querySelectorAll("li");
+            const target = items[state.focusFeedIndex];
+            if (target) {
+              selectFeed(target.dataset.feedId);
+            }
+          } else {
+            const items = articleList.querySelectorAll("li[data-article-index]");
+            const target = items[state.focusArticleIndex];
+            if (target) {
+              handleArticleSelect(Number(target.dataset.articleIndex));
+            }
+          }
+        }
+      });
+
+      menu.addEventListener("click", (event) => {
+        if (event.target === menu) {
+          closeMenu();
+        }
+      });
+
+      loadState();
+      renderApp();
+      setStatus("news-terminal ready (m for menu)");
+    </script>
+  </body>
+</html>

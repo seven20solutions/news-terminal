@@ -30,7 +30,7 @@
 
       body {
         margin: 0;
-        min-height: 100vh;
+        height: 100vh;
         background: #01358f;
         color: var(--text);
         display: flex;
@@ -54,11 +54,13 @@
         display: flex;
         flex-direction: column;
         padding: 1.5rem;
+        padding-bottom: 4rem;
         background: linear-gradient(135deg, var(--bg), #021f6c 70%);
         border-left: 6px solid rgba(255, 255, 255, 0.2);
         border-right: 6px solid rgba(255, 255, 255, 0.2);
         position: relative;
         overflow: hidden;
+        height: 100vh;
       }
 
       .status-bar {
@@ -102,6 +104,17 @@
         flex: 1;
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         overflow: hidden;
+        height: 100%;
+        min-height: 0;
+      }
+
+      .tab-bar {
+        display: none;
+        margin-bottom: 0.5rem;
+      }
+
+      .tab-indicator {
+        display: none;
       }
 
       section.panel {
@@ -113,6 +126,8 @@
         display: flex;
         flex-direction: column;
         min-height: 280px;
+        flex: 1;
+        min-height: 0;
       }
 
       .panel h2 {
@@ -134,6 +149,12 @@
         gap: 0.4rem;
         overflow: auto;
         flex: 1;
+      }
+
+      .list {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
       }
 
       .list li {
@@ -300,6 +321,34 @@
         font-family: "Topaz A1200", "IBM Plex Mono", monospace;
       }
 
+      .reader-toggle-row {
+        margin-top: 0.5rem;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .reader-toggle {
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        background: rgba(2, 35, 88, 0.6);
+        color: var(--text);
+        letter-spacing: 0.08em;
+        padding: 0.35rem 0.75rem;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+        text-transform: uppercase;
+      }
+
+      .reader-toggle.hidden {
+        display: none;
+      }
+
+      .reader-toggle-status {
+        font-size: 0.75rem;
+        color: var(--muted);
+        letter-spacing: 0.08em;
+      }
+
       .article-full {
         margin-top: 1rem;
         border-top: 1px dashed var(--border);
@@ -414,6 +463,10 @@
         color: var(--text);
       }
 
+      .mobile-nav {
+        display: none;
+      }
+
       .menu-actions {
         display: flex;
         gap: 0.6rem;
@@ -480,6 +533,31 @@
         color: #ee8802;
         font-size: 0.75rem;
         min-height: 1.1rem;
+      }
+
+      .openai-settings {
+        border-top: 1px solid rgba(255, 255, 255, 0.25);
+        padding-top: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .openai-settings .proxy-helper {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      .openai-settings .proxy-actions button,
+      .openai-settings .proxy-actions input {
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+        background: rgba(2, 35, 88, 0.6);
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 0.5rem 0.9rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
       }
 
       .menu-feed-list {
@@ -564,12 +642,88 @@
       }
 
       @media (max-width: 768px) {
+        body {
+          overflow: hidden;
+        }
+
         main.shell {
           padding: 1rem;
         }
 
         .grid {
-          grid-template-columns: 1fr;
+          display: block;
+        }
+
+        section.panel {
+          display: none;
+          flex: 1;
+          min-height: calc(100vh - 7rem);
+        }
+
+        section.panel.visible {
+          display: flex;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          max-height: calc(100vh - 6rem);
+        }
+
+        .tab-bar {
+          display: flex;
+          gap: 0.5rem;
+          margin-bottom: 0.75rem;
+          justify-content: space-between;
+        }
+
+        .tab-bar button {
+          flex: 1;
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          background: rgba(1, 68, 170, 0.8);
+          color: var(--text);
+          padding: 0.5rem 0.75rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+        }
+
+        .tab-bar button.active {
+          border-color: var(--accent);
+          color: var(--accent);
+        }
+
+        .tab-indicator {
+          display: block;
+          text-align: center;
+          font-size: 0.75rem;
+          letter-spacing: 0.08em;
+          color: var(--muted);
+          margin-bottom: 0.3rem;
+        }
+
+        .mobile-nav {
+          display: none;
+        }
+
+        .mobile-nav button {
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          color: var(--text);
+          background: rgba(1, 68, 170, 0.8);
+          padding: 0.4rem 0.9rem;
+          font-size: 0.75rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          cursor: pointer;
+          font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+        }
+
+        .mobile-nav button.active {
+          border-color: var(--accent);
+          color: var(--accent);
+        }
+
+        .status-bar {
+          flex-wrap: wrap;
         }
       }
     </style>
@@ -580,7 +734,13 @@
         <span class="prompt" aria-label="command prompt">news-terminal:~$</span>
         <button class="menu-trigger" type="button">menu (m)</button>
       </div>
-      <div class="grid">
+      <div class="tab-bar" id="tab-bar">
+        <button type="button" data-panel="0" class="tab-button active">Feeds</button>
+        <button type="button" data-panel="1" class="tab-button">Articles</button>
+        <button type="button" data-panel="2" class="tab-button">Reader</button>
+      </div>
+      <div class="tab-indicator" id="tab-indicator">Viewing Feeds (1/3)</div>
+      <div class="grid" id="panel-grid">
         <section class="panel" id="feed-screen">
           <h2>Feeds</h2>
           <ul class="list" id="feed-list"></ul>
@@ -601,11 +761,14 @@
             <button id="reader-view" type="button">View Link (V)</button>
             <button id="reader-download" type="button">Full Article (D)</button>
           </div>
+          <div class="reader-toggle-row">
+            <button id="reader-toggle" type="button" class="reader-toggle hidden">View raw (O)</button>
+            <span id="reader-toggle-status" class="reader-toggle-status"></span>
+          </div>
           <div class="article-full" id="article-full">
             <p class="muted">Press D to fetch the full article via Jina.</p>
           </div>
         </section>
-      </div>
       <div class="menu-overlay" id="menu">
         <button class="menu-close" type="button">Close (Esc)</button>
         <div>
@@ -638,12 +801,25 @@
             <button data-template="https://api.allorigins.win/raw?url=%s" type="button">AllOrigins</button>
             <button data-template="https://cors-anywhere.herokuapp.com/%s" type="button">CORS Anywhere</button>
           </div>
-          <div class="proxy-status" id="proxy-status">Current proxy: default (https://api.allorigins.win/raw?url=%s)</div>
-          <div class="proxy-message" id="proxy-message"></div>
-          <button id="reset-proxy" type="button">Reset to default</button>
-        </div>
+        <div class="proxy-status" id="proxy-status">Current proxy: default (https://api.allorigins.win/raw?url=%s)</div>
+        <div class="proxy-message" id="proxy-message"></div>
+        <button id="reset-proxy" type="button">Reset to default</button>
       </div>
-    </main>
+      <div class="openai-settings">
+        <h3>OpenAI cleanup</h3>
+        <p class="proxy-helper">Optional: supply an OpenAI API key to have GPT-5 Mini clean the downloaded article. The key stays local.</p>
+        <div class="proxy-actions">
+          <input id="openai-key" type="password" placeholder="sk-...." />
+          <button id="save-openai" type="button">Save key</button>
+        </div>
+        <div class="proxy-actions">
+          <button id="clear-openai" type="button">Clear key</button>
+        </div>
+        <div class="proxy-status" id="openai-status">OpenAI key: not saved</div>
+        <div class="proxy-message" id="openai-message"></div>
+      </div>
+    </div>
+  </main>
     <script>
       const STORAGE_KEYS = {
         feeds: "news-terminal-feeds",
@@ -652,6 +828,7 @@
         proxyModes: "news-terminal-proxy-modes",
         imageProxy: "news-terminal-image-proxy",
         customProxy: "news-terminal-custom-proxy",
+        openAi: "news-terminal-openai-key",
       };
 
       const defaultProxyTemplate = "https://api.allorigins.win/raw?url=%s";
@@ -677,6 +854,15 @@
       const proxyStatus = document.getElementById("proxy-status");
       const proxyMessage = document.getElementById("proxy-message");
       const proxyPresetButtons = document.querySelectorAll(".proxy-presets button");
+      const openAiKeyInput = document.getElementById("openai-key");
+      const saveOpenAiButton = document.getElementById("save-openai");
+      const clearOpenAiButton = document.getElementById("clear-openai");
+      const openAiStatus = document.getElementById("openai-status");
+      const openAiMessage = document.getElementById("openai-message");
+      const toggleCleanButton = document.getElementById("reader-toggle");
+      const toggleStatus = document.getElementById("reader-toggle-status");
+      const tabButtons = document.querySelectorAll(".tab-button");
+      const tabIndicator = document.getElementById("tab-indicator");
       const refreshButton = document.getElementById("refresh-feed");
       const clearButton = document.getElementById("clear-storage");
 
@@ -692,8 +878,13 @@
         imageProxyByFeed: {},
         customProxyTemplate: null,
         usingCustomProxy: false,
+        customProxyError: "",
+        openAiKey: null,
+        hasOpenAiKey: false,
+        articleViewMode: "clean",
+        activePanel: 0,
       };
-      const jinaCache = {};
+      const articleTextCache = {};
 
       function loadState() {
         const storedFeeds = localStorage.getItem(STORAGE_KEYS.feeds);
@@ -708,6 +899,9 @@
         state.imageProxyByFeed = storedImageProxy ? JSON.parse(storedImageProxy) : {};
         state.customProxyTemplate = storedCustomProxy ? storedCustomProxy : null;
         state.usingCustomProxy = Boolean(state.customProxyTemplate);
+        const storedOpenAiKey = localStorage.getItem(STORAGE_KEYS.openAi);
+        state.openAiKey = storedOpenAiKey || null;
+        state.hasOpenAiKey = Boolean(storedOpenAiKey);
         if (storedLast && state.feeds.find((feed) => feed.id === storedLast)) {
           state.selectedFeedId = storedLast;
         }
@@ -722,6 +916,7 @@
         localStorage.setItem(STORAGE_KEYS.proxyModes, JSON.stringify(state.proxyModeByFeed));
         localStorage.setItem(STORAGE_KEYS.imageProxy, JSON.stringify(state.imageProxyByFeed));
         localStorage.setItem(STORAGE_KEYS.customProxy, state.customProxyTemplate || "");
+        localStorage.setItem(STORAGE_KEYS.openAi, state.openAiKey || "");
         if (state.selectedFeedId) {
           localStorage.setItem(STORAGE_KEYS.lastFeed, state.selectedFeedId);
         }
@@ -828,12 +1023,37 @@
         return output;
       }
 
-      function applyFullArticleText(content, link) {
-        articleBody.innerHTML = `<div class="article-full-text">${renderMarkdown(content)}</div>`;
-        if (link) {
-          jinaCache[link] = content;
+      function renderArticleBodyFromCache(link) {
+        const cache = articleTextCache[link];
+        if (!cache) {
+          articleBody.innerHTML = `<p class="muted">Download the article to view it here.</p>`;
+          toggleCleanButton.classList.add("hidden");
+          toggleStatus.textContent = "";
+          return;
         }
-        updateArticleStatus("Full article loaded through Jina.");
+        let mode = state.articleViewMode;
+        if (mode === "clean" && !cache.cleaned) {
+          mode = "raw";
+        }
+        const text = mode === "clean" && cache.cleaned ? cache.cleaned : cache.raw;
+        articleBody.innerHTML = `<div class="article-full-text">${renderMarkdown(text)}</div>`;
+        const hasClean = Boolean(cache.cleaned);
+        if (hasClean) {
+          toggleCleanButton.classList.remove("hidden");
+          toggleCleanButton.disabled = false;
+          toggleCleanButton.textContent = mode === "clean" ? "View raw (O)" : "View clean (O)";
+          toggleStatus.textContent = mode === "clean" ? "Showing cleaned text" : "Showing raw text";
+        } else {
+          toggleCleanButton.classList.add("hidden");
+          toggleStatus.textContent = "";
+        }
+        state.articleViewMode = mode;
+      }
+
+      function applyFullArticleText(link) {
+        renderArticleBodyFromCache(link);
+        const modeLabel = state.articleViewMode === "clean" ? "Clean" : "Raw";
+        updateArticleStatus(`${modeLabel} article ready.`);
       }
 
       function shouldProxyPreview(feedId) {
@@ -906,16 +1126,132 @@
         if (state.selectedFeedId) fetchFeed(state.selectedFeedId);
       }
 
-      function renderProxySettings() {
+      function updateOpenAiStatusLine() {
+        const statusText = state.hasOpenAiKey ? "OpenAI key: saved" : "OpenAI key: not saved";
+        openAiStatus.textContent = statusText;
+        openAiKeyInput.value = state.openAiKey || "";
+      }
+
+      function renderSettings() {
         updateProxyStatusLine();
+        updateOpenAiStatusLine();
+      }
+
+      function renderActivePanel() {
+        const tabsActive = window.innerWidth <= 768;
+        const panels = document.querySelectorAll(".panel");
+        panels.forEach((panel, idx) => {
+          panel.classList.toggle("visible", !tabsActive || idx === state.activePanel);
+        });
+        if (tabsActive && tabIndicator) {
+          const names = ["Feeds", "Articles", "Reader"];
+          tabIndicator.textContent = `Viewing ${names[state.activePanel]} (${state.activePanel + 1}/3)`;
+        }
+        tabButtons.forEach((btn) => {
+          btn.classList.toggle("active", Number(btn.dataset.panel) === state.activePanel);
+        });
+      }
+
+      function setActivePanel(index) {
+        const bounded = Math.max(0, Math.min(2, index));
+        state.activePanel = bounded;
+        renderActivePanel();
+      }
+
+      async function cleanWithOpenAI(text) {
+        if (!state.hasOpenAiKey) {
+          throw new Error("OpenAI key is missing");
+        }
+        const payload = {
+          model: "gpt-5-mini",
+          input: [
+            { role: "system", content: "You are a helpful assistant specializing in clean article summaries." },
+            {
+              role: "user",
+              content:
+                "Extract and return only the main body of this article. Remove navigation, headers, footers, sidebars, ads, and unrelated links. Keep paragraphs intact and do not add commentary.\n\n" +
+                text,
+            },
+          ],
+          tools: [{ type: "web_search_preview", search_context_size: "medium" }],
+          max_output_tokens: 2000,
+          text: { format: { type: "text" } },
+        };
+        const safeKey = (state.openAiKey || "").trim();
+        const response = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${safeKey.replace(/[^\x00-\x7F]/g, "")}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const details = await response.text();
+          throw new Error(`OpenAI error (${response.status}): ${details}`);
+        }
+        const data = await response.json();
+        const canonicalOutputs = [];
+        if (Array.isArray(data.output)) {
+          data.output.forEach((item) => {
+            if (item.type === "output_text" && typeof item.text === "string") {
+              canonicalOutputs.push(item.text);
+            }
+            if (Array.isArray(item.content)) {
+              item.content.forEach((section) => {
+                if (typeof section.text === "string") {
+                  canonicalOutputs.push(section.text);
+                }
+              });
+            }
+          });
+        }
+        const outputText = data.output_text || canonicalOutputs.join("\n");
+        if (!outputText) {
+          throw new Error("OpenAI response contained no text");
+        }
+        const cleaned = outputText
+          .split("\n")
+          .filter((line) => !line.includes("<system-reminder>"))
+          .join("\n")
+          .trim();
+        if (!cleaned) {
+          throw new Error("OpenAI response contained no readable text");
+        }
+        return cleaned;
+      }
+
+      function handleSaveOpenAi() {
+        const value = openAiKeyInput.value.trim();
+        if (!value) {
+          openAiMessage.textContent = "Enter your OpenAI API key to save.";
+          return;
+        }
+        state.openAiKey = value;
+        state.hasOpenAiKey = true;
+        openAiMessage.textContent = "";
+        persistState();
+        renderSettings();
+        setStatus("OpenAI key saved.");
+      }
+
+      function handleClearOpenAi() {
+        state.openAiKey = null;
+        state.hasOpenAiKey = false;
+        openAiKeyInput.value = "";
+        openAiMessage.textContent = "";
+        persistState();
+        renderSettings();
+        setStatus("OpenAI key cleared.");
       }
 
       async function loadJinaArticle(link) {
         if (!link) {
           throw new Error("Missing article link");
         }
-        if (jinaCache[link]) {
-          return jinaCache[link];
+        const cached = articleTextCache[link];
+        if (cached && cached.raw) {
+          return cached.raw;
         }
         updateArticleStatus("Loading the full article via Jina…");
         const response = await fetch(`${jinaProxy}${link}`);
@@ -924,7 +1260,8 @@
         }
         const text = await response.text();
         const result = text.trim() || "No text returned from Jina.";
-        jinaCache[link] = result;
+        articleTextCache[link] = articleTextCache[link] || {};
+        articleTextCache[link].raw = result;
         return result;
       }
 
@@ -1123,6 +1460,9 @@
         if (!state.articles[feedId] || !state.articles[feedId].length) {
           fetchFeed(feedId);
         }
+        if (window.innerWidth <= 768) {
+          setActivePanel(1);
+        }
       }
 
       async function attemptFetch(feed, mode, onFallback) {
@@ -1239,6 +1579,9 @@
         state.focusZone = "articles";
         renderArticles();
         renderArticleView();
+        if (window.innerWidth <= 768) {
+          setActivePanel(2);
+        }
       }
 
       function addFeed(url, label) {
@@ -1289,7 +1632,8 @@
         renderFeeds();
         renderArticles();
         renderArticleView();
-        renderProxySettings();
+        renderSettings();
+        renderActivePanel();
       }
 
       document.getElementById("feed-form").addEventListener("submit", (event) => {
@@ -1324,10 +1668,15 @@
           imageProxyByFeed: {},
           customProxyTemplate: null,
           usingCustomProxy: false,
+          openAiKey: null,
+          hasOpenAiKey: false,
+          articleViewMode: "clean",
         };
         renderApp();
         proxyMessage.textContent = "";
+        openAiMessage.textContent = "";
         updateProxyStatusLine();
+        updateOpenAiStatusLine();
         setStatus("Storage cleared.");
       });
 
@@ -1340,6 +1689,16 @@
         button.addEventListener("click", () => {
           proxyTemplateInput.value = button.dataset.template;
           proxyMessage.textContent = "Press Save to apply this preset.";
+        });
+      });
+      saveOpenAiButton.addEventListener("click", handleSaveOpenAi);
+      clearOpenAiButton.addEventListener("click", handleClearOpenAi);
+      openAiKeyInput.addEventListener("input", () => {
+        openAiMessage.textContent = "";
+      });
+      tabButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          setActivePanel(Number(button.dataset.panel));
         });
       });
 
@@ -1358,14 +1717,46 @@
       readerDownload.addEventListener("click", async () => {
         const link = readerDownload.dataset.link;
         if (!link) return;
+        readerDownload.disabled = true;
+        toggleCleanButton.disabled = true;
+        setStatus("Downloading article...");
         try {
-          const markdown = await loadJinaArticle(link);
-          applyFullArticleText(markdown, link);
-          setStatus("Full article loaded via Jina.");
+          const raw = await loadJinaArticle(link);
+          articleTextCache[link] = articleTextCache[link] || {};
+          articleTextCache[link].raw = raw;
+          if (state.hasOpenAiKey) {
+            setStatus("Cleaning article via OpenAI...");
+            try {
+              const cleaned = await cleanWithOpenAI(raw);
+              articleTextCache[link].cleaned = cleaned;
+              state.articleViewMode = "clean";
+              setStatus("OpenAI cleanup ready.");
+            } catch (error) {
+              updateArticleStatus(`OpenAI error: ${error.message}`);
+              setStatus(`Unable to clean article: ${error.message}`);
+              state.articleViewMode = "raw";
+            }
+          } else {
+            state.articleViewMode = "raw";
+            setStatus("Full article loaded via Jina.");
+          }
+          applyFullArticleText(link);
         } catch (error) {
           setStatus(`Unable to load full article: ${error.message}`);
           updateArticleStatus(`Unable to load via Jina: ${error.message}`);
+        } finally {
+          readerDownload.disabled = false;
+          toggleCleanButton.disabled = false;
         }
+      });
+
+      toggleCleanButton.addEventListener("click", () => {
+        const link = readerDownload.dataset.link;
+        if (!link) return;
+        const cache = articleTextCache[link];
+        if (!cache || !cache.cleaned) return;
+        state.articleViewMode = state.articleViewMode === "clean" ? "raw" : "clean";
+        renderArticleBodyFromCache(link);
       });
 
       document.addEventListener("keydown", (event) => {
@@ -1455,6 +1846,7 @@
       if (needsImageRefresh(state.selectedFeedId)) {
         fetchFeed(state.selectedFeedId);
       }
+      window.addEventListener("resize", renderActivePanel);
       setStatus("news-terminal ready (m for menu)");
     </script>
   </body>

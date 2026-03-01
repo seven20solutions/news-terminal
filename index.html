@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>news-terminal</title>
     <style>
+      @font-face {
+        font-family: "Topaz A1200";
+        src: url("Topaznew.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+      }
+
       :root {
         color-scheme: dark;
         --bg: #0144aa;
@@ -64,6 +71,7 @@
         padding-bottom: 0.5rem;
         border-bottom: 1px solid var(--border);
         margin-bottom: 1rem;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
       }
 
       .status-bar span:first-child {
@@ -114,6 +122,7 @@
         text-transform: uppercase;
         color: var(--muted);
         margin-bottom: 0.75rem;
+        font-family: "Topaz A1200", "IBM Plex Mono", "Space Mono", monospace;
       }
 
       ul.list {
@@ -200,6 +209,159 @@
         margin-top: 0;
       }
 
+      .article-preview {
+        margin-top: 0.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        border-radius: 0.75rem;
+        min-height: 140px;
+        background: linear-gradient(135deg, rgba(1, 68, 170, 0.25), rgba(0, 0, 0, 0.2));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+        padding: 0.75rem;
+      }
+
+      .article-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        filter: saturate(0.6) contrast(1.1) brightness(0.9) sepia(0.5) hue-rotate(190deg);
+        position: relative;
+        z-index: 1;
+      }
+
+      .article-preview::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+          to bottom,
+          rgba(1, 68, 170, 0.4) 0,
+          rgba(1, 68, 170, 0.4) 2px,
+          transparent 2px,
+          transparent 4px
+        );
+        pointer-events: none;
+        mix-blend-mode: multiply;
+        opacity: 0.95;
+        z-index: 2;
+      }
+
+      .article-preview::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(0deg, transparent 0%, transparent 1px, rgba(255, 255, 255, 0.05) 1px),
+          linear-gradient(90deg, transparent 0%, #605353ed 1px, rgb(63 63 63) 1px);
+        mix-blend-mode: screen;
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      .preview-status {
+        position: absolute;
+        right: 0.5rem;
+        bottom: 0.4rem;
+        font-size: 0.65rem;
+        letter-spacing: 0.2em;
+        color: var(--accent);
+        background: rgba(1, 68, 170, 0.8);
+        padding: 0.1rem 0.4rem;
+        border-radius: 0.3rem;
+        text-transform: uppercase;
+        display: none;
+        transition: opacity 0.2s;
+      }
+
+      .preview-status.active {
+        display: inline-flex;
+        opacity: 1;
+      }
+
+      .article-preview.hidden {
+        display: none;
+      }
+
+      .reader-actions {
+        margin-top: 0.8rem;
+        gap: 0.65rem;
+        flex-wrap: wrap;
+      }
+
+      .reader-actions button {
+        flex: 1 1 120px;
+        min-width: 110px;
+        border-radius: 0.6rem;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+      }
+
+      .article-full {
+        margin-top: 1rem;
+        border-top: 1px dashed var(--border);
+        padding-top: 1rem;
+        max-height: 220px;
+        overflow-y: auto;
+        font-size: 0.85rem;
+        line-height: 1.4;
+      }
+
+      .article-full-text {
+        margin: 0;
+        font-size: 0.8rem;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .article-full-text h1,
+      .article-full-text h2,
+      .article-full-text h3,
+      .article-full-text h4,
+      .article-full-text h5,
+      .article-full-text h6 {
+        margin: 0;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+        font-size: 0.95rem;
+      }
+
+      .article-full-text p {
+        margin: 0;
+      }
+
+      .article-full-text a {
+        color: var(--accent);
+        text-decoration: underline;
+      }
+
+      .article-full-text ul,
+      .article-full-text ol {
+        padding-left: 1.1rem;
+        margin: 0;
+      }
+
+      .article-full-text blockquote {
+        border-left: 2px solid rgba(255, 255, 255, 0.4);
+        padding-left: 0.75rem;
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .article-full-text img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 0.4rem;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+
       .menu-trigger {
         border: 1px solid var(--border);
         border-radius: 999px;
@@ -210,6 +372,7 @@
         cursor: pointer;
         letter-spacing: 0.1em;
         text-transform: uppercase;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
       }
 
       .menu-overlay {
@@ -231,6 +394,7 @@
         margin: 0;
         font-size: 1.1rem;
         color: var(--text);
+        font-family: "Topaz A1200", "IBM Plex Mono", "Space Mono", monospace;
       }
 
       .menu-overlay form {
@@ -242,7 +406,7 @@
 
       .menu-overlay input,
       .menu-overlay button {
-        font-family: inherit;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
         border-radius: 0.5rem;
         border: 1px solid var(--border);
         padding: 0.6rem;
@@ -265,6 +429,7 @@
         text-transform: uppercase;
         letter-spacing: 0.08em;
         padding: 0.6rem 1.2rem;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
       }
 
       .menu-feed-list {
@@ -329,6 +494,7 @@
         background: rgba(2, 35, 88, 0.6);
         color: var(--text);
         cursor: pointer;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
       }
 
       .mode-toggle button.active {
@@ -375,13 +541,18 @@
         </section>
         <section class="panel" id="article-view-screen">
           <h2>Reader</h2>
-          <div class="article-metadata" id="article-meta"></div>
-          <div class="article-body" id="article-body">
-            <p>Select an article to read.</p>
-          </div>
-          <div class="menu-actions">
+        <div class="article-metadata" id="article-meta"></div>
+        <div class="article-preview hidden" id="article-preview" aria-hidden="true"></div>
+        <div class="article-body" id="article-body">
+          <p>Select an article to read.</p>
+        </div>
+          <div class="menu-actions reader-actions">
             <button id="reader-back" type="button">Back (h)</button>
-            <button id="reader-open" type="button">Open Source</button>
+            <button id="reader-view" type="button">View Link (V)</button>
+            <button id="reader-download" type="button">Full Article (D)</button>
+          </div>
+          <div class="article-full" id="article-full">
+            <p class="muted">Press D to fetch the full article via Jina.</p>
           </div>
         </section>
       </div>
@@ -414,9 +585,11 @@
         articles: "news-terminal-articles",
         lastFeed: "news-terminal-selected-feed",
         proxyModes: "news-terminal-proxy-modes",
+        imageProxy: "news-terminal-image-proxy",
       };
 
       const proxyBase = "https://api.allorigins.win/raw?url=";
+      const jinaProxy = "https://r.jina.ai/http://";
 
       const menu = document.getElementById("menu");
       const feedList = document.getElementById("feed-list");
@@ -425,10 +598,13 @@
       const articleBody = document.getElementById("article-body");
       const menuTrigger = document.querySelector(".menu-trigger");
       const readerBack = document.getElementById("reader-back");
-      const readerOpen = document.getElementById("reader-open");
+      const readerView = document.getElementById("reader-view");
+      const readerDownload = document.getElementById("reader-download");
       const menuFeedList = document.getElementById("menu-feed-list");
       const menuClose = document.querySelector(".menu-close");
       const statusBar = document.querySelector(".prompt");
+      const articleFull = document.getElementById("article-full");
+      const articlePreview = document.getElementById("article-preview");
       const refreshButton = document.getElementById("refresh-feed");
       const clearButton = document.getElementById("clear-storage");
 
@@ -441,16 +617,20 @@
         focusArticleIndex: 0,
         focusZone: "feeds",
         proxyModeByFeed: {},
+        imageProxyByFeed: {},
       };
+      const jinaCache = {};
 
       function loadState() {
         const storedFeeds = localStorage.getItem(STORAGE_KEYS.feeds);
         const storedArticles = localStorage.getItem(STORAGE_KEYS.articles);
         const storedLast = localStorage.getItem(STORAGE_KEYS.lastFeed);
         const storedProxyModes = localStorage.getItem(STORAGE_KEYS.proxyModes);
+        const storedImageProxy = localStorage.getItem(STORAGE_KEYS.imageProxy);
         state.feeds = storedFeeds ? JSON.parse(storedFeeds) : [];
         state.articles = storedArticles ? JSON.parse(storedArticles) : {};
         state.proxyModeByFeed = storedProxyModes ? JSON.parse(storedProxyModes) : {};
+        state.imageProxyByFeed = storedImageProxy ? JSON.parse(storedImageProxy) : {};
         if (storedLast && state.feeds.find((feed) => feed.id === storedLast)) {
           state.selectedFeedId = storedLast;
         }
@@ -463,9 +643,159 @@
         localStorage.setItem(STORAGE_KEYS.feeds, JSON.stringify(state.feeds));
         localStorage.setItem(STORAGE_KEYS.articles, JSON.stringify(state.articles));
         localStorage.setItem(STORAGE_KEYS.proxyModes, JSON.stringify(state.proxyModeByFeed));
+        localStorage.setItem(STORAGE_KEYS.imageProxy, JSON.stringify(state.imageProxyByFeed));
         if (state.selectedFeedId) {
           localStorage.setItem(STORAGE_KEYS.lastFeed, state.selectedFeedId);
         }
+      }
+
+      function escapeHtml(text) {
+        return text
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function updateArticleStatus(message) {
+        articleFull.innerHTML = `<p class='muted'>${message}</p>`;
+      }
+
+      function inlineMarkdown(text) {
+        let result = escapeHtml(text);
+        result = result.replace(/!\[([^\]]+)\]\(([^)]+)\)/g, (match, alt, url) => {
+          const safeAlt = escapeHtml(alt);
+          const safeUrl = escapeHtml(url);
+          return `<img src="${safeUrl}" alt="${safeAlt}" loading="lazy" />`;
+        });
+        result = result.replace(/`([^`]+)`/g, (match, code) => `<code>${code}</code>`);
+        result = result.replace(/\*\*([^*]+)\*\*/g, (match, bold) => `<strong>${bold}</strong>`);
+        result = result.replace(/__([^_]+)__+/g, (match, bold) => `<strong>${bold}</strong>`);
+        result = result.replace(/\*([^*]+)\*/g, (match, italic) => `<em>${italic}</em>`);
+        result = result.replace(/_([^_]+)_/g, (match, italic) => `<em>${italic}</em>`);
+        result = result.replace(/~\~([^~]+)~~/g, (match, strike) => `<del>${strike}</del>`);
+        result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, url) => {
+          const safeUrl = escapeHtml(url);
+          return `<a href="${safeUrl}" target="_blank" rel="noopener">${label}</a>`;
+        });
+        return result;
+      }
+
+      function renderMarkdown(markdown) {
+        if (!markdown) {
+          return '<p class="muted">No content available.</p>';
+        }
+        const lines = markdown.split(/\r?\n/);
+        let output = "";
+        let listType = null;
+        const closeList = () => {
+          if (listType) {
+            output += `</${listType}>`;
+            listType = null;
+          }
+        };
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) {
+            closeList();
+            continue;
+          }
+          const headerMatch = trimmed.match(/^(#{1,6})\s+(.*)/);
+          if (headerMatch) {
+            closeList();
+            const level = headerMatch[1].length;
+            output += `<h${level}>${inlineMarkdown(headerMatch[2])}</h${level}>`;
+            continue;
+          }
+          const blockquoteMatch = trimmed.match(/^>\s+(.*)/);
+          if (blockquoteMatch) {
+            closeList();
+            output += `<blockquote>${inlineMarkdown(blockquoteMatch[1])}</blockquote>`;
+            continue;
+          }
+          const ulMatch = trimmed.match(/^[-*+]\s+(.*)/);
+          if (ulMatch) {
+            if (listType !== "ul") {
+              closeList();
+              listType = "ul";
+              output += "<ul>";
+            }
+            output += `<li>${inlineMarkdown(ulMatch[1])}</li>`;
+            continue;
+          }
+          const olMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+          if (olMatch) {
+            if (listType !== "ol") {
+              closeList();
+              listType = "ol";
+              output += "<ol>";
+            }
+            output += `<li>${inlineMarkdown(olMatch[2])}</li>`;
+            continue;
+          }
+          closeList();
+          output += `<p>${inlineMarkdown(trimmed)}</p>`;
+        }
+        closeList();
+        return output;
+      }
+
+      function applyFullArticleText(content, link) {
+        articleBody.innerHTML = `<div class="article-full-text">${renderMarkdown(content)}</div>`;
+        if (link) {
+          jinaCache[link] = content;
+        }
+        updateArticleStatus("Full article loaded through Jina.");
+      }
+
+      function proxyImageUrl(url) {
+        if (!url || url.includes(proxyBase)) {
+          return url;
+        }
+        return `${proxyBase}${encodeURIComponent(url)}`;
+      }
+
+      function shouldProxyPreview(feedId) {
+        if (!feedId) return false;
+        if (state.proxyModeByFeed[feedId] === "proxy") return true;
+        return Boolean(state.imageProxyByFeed[feedId]);
+      }
+
+      function updateArticlePreview(imageUrl, feedId) {
+        if (!imageUrl) {
+        articlePreview.classList.add("hidden");
+        articlePreview.setAttribute("aria-hidden", "true");
+        articlePreview.innerHTML = "";
+        return;
+      }
+        const useProxy = shouldProxyPreview(feedId);
+        const finalImage = useProxy ? proxyImageUrl(imageUrl) : imageUrl;
+        articlePreview.classList.remove("hidden");
+        articlePreview.setAttribute("aria-hidden", "false");
+        const statusSnippet = useProxy ? `<span class="preview-status active">PROXY IMAGE</span>` : "";
+        articlePreview.innerHTML = `
+          <img src="${finalImage}" alt="Article preview" loading="lazy" />
+          ${statusSnippet}
+        `;
+      }
+
+      async function loadJinaArticle(link) {
+        if (!link) {
+          throw new Error("Missing article link");
+        }
+        if (jinaCache[link]) {
+          return jinaCache[link];
+        }
+        updateArticleStatus("Loading the full article via Jina…");
+        const response = await fetch(`${jinaProxy}${link}`);
+        if (!response.ok) {
+          throw new Error(`Jina proxy failed (${response.status})`);
+        }
+        const text = await response.text();
+        const result = text.trim() || "No text returned from Jina.";
+        jinaCache[link] = result;
+        return result;
       }
 
       function setStatus(text) {
@@ -515,6 +845,7 @@
         state.proxyModeByFeed[feedId] = mode;
         persistState();
         renderFeeds();
+        renderMenuFeedList();
         if (state.selectedFeedId === feedId) {
           fetchFeed(feedId);
         }
@@ -637,13 +968,19 @@
         if (!article) {
           articleMeta.textContent = "No article selected.";
           articleBody.innerHTML = "<p>Select an article to view it here.</p>";
-          readerOpen.disabled = true;
+          readerView.disabled = true;
+          readerDownload.disabled = true;
+          updateArticleStatus("Select an article and press D for the full version.");
           return;
         }
         articleMeta.innerHTML = `${article.source ? `${article.source} · ` : ""}${new Date(article.published || Date.now()).toLocaleString()}`;
         articleBody.innerHTML = article.summary || "<p>No summary available.</p>";
-        readerOpen.disabled = false;
-        readerOpen.dataset.link = article.link;
+        readerView.disabled = !article.link;
+        readerDownload.disabled = !article.link;
+        readerView.dataset.link = article.link;
+        readerDownload.dataset.link = article.link;
+        updateArticleStatus("Tap D (or the button) to load the full article via Jina or V to open the source.");
+        updateArticlePreview(article.image, state.selectedFeedId);
       }
 
       function selectFeed(feedId) {
@@ -682,6 +1019,41 @@
         }
       }
 
+      function extractImageUrl(item) {
+        const MRSS_NS = "http://search.yahoo.com/mrss/";
+        const mediaContentNodes = Array.from(item.getElementsByTagNameNS(MRSS_NS, "content"));
+        if (mediaContentNodes.length) {
+          const preferred =
+            mediaContentNodes.find((node) => node.getAttribute("isDefault") === "true") ||
+            mediaContentNodes[0];
+          const attr = preferred.getAttribute("url") || preferred.getAttribute("href");
+          if (attr) return attr.trim();
+        }
+        const thumbnailNodes = Array.from(item.getElementsByTagNameNS(MRSS_NS, "thumbnail"));
+        if (thumbnailNodes.length) {
+          const attr = thumbnailNodes[0].getAttribute("url") || thumbnailNodes[0].getAttribute("href");
+          if (attr) return attr.trim();
+        }
+        const enclosure = item.querySelector("enclosure");
+        if (enclosure) {
+          const attr = enclosure.getAttribute("url") || enclosure.getAttribute("href");
+          if (attr) return attr.trim();
+        }
+        const content = item.getElementsByTagName("content:encoded")[0]?.textContent || "";
+        const description = item.querySelector("description")?.textContent || "";
+        const htmlSource = content || description;
+        const imgMatch = htmlSource.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if (imgMatch) return imgMatch[1];
+        return null;
+      }
+
+      function needsImageRefresh(feedId) {
+        if (!feedId) return false;
+        const articles = state.articles[feedId] || [];
+        if (!articles.length) return true;
+        return !articles.some((article) => article.image);
+      }
+
       async function fetchFeed(feedId) {
         const feed = state.feeds.find((item) => item.id === feedId);
         if (!feed) return;
@@ -714,9 +1086,11 @@
                     .replace(/<script[\s\S]*?<\/script>/gi, "")
                 : "",
               source: feed.title || feed.url,
+              image: extractImageUrl(item),
             };
           });
           state.articles[feedId] = parsed;
+          state.imageProxyByFeed[feedId] = fromProxy;
           persistState();
           const finalMode = fromProxy ? "proxy" : "direct";
           const fallbackNote = mode === "auto" && fromProxy ? " (fallback)" : "";
@@ -760,6 +1134,7 @@
         state.feeds = state.feeds.filter((feed) => feed.id !== feedId);
         delete state.articles[feedId];
         delete state.proxyModeByFeed[feedId];
+        delete state.imageProxyByFeed[feedId];
         if (state.selectedFeedId === feedId) {
           state.selectedFeedId = state.feeds[0]?.id || null;
         }
@@ -813,6 +1188,7 @@
           focusArticleIndex: 0,
           focusZone: "feeds",
           proxyModeByFeed: {},
+          imageProxyByFeed: {},
         };
         renderApp();
         setStatus("Storage cleared.");
@@ -824,10 +1200,22 @@
         articleList.querySelector("li[data-article-index]")?.focus();
       });
 
-      readerOpen.addEventListener("click", () => {
-        const link = readerOpen.dataset.link;
+      readerView.addEventListener("click", () => {
+        const link = readerView.dataset.link;
         if (link) {
           window.open(link, "_blank", "noopener");
+        }
+      });
+      readerDownload.addEventListener("click", async () => {
+        const link = readerDownload.dataset.link;
+        if (!link) return;
+        try {
+          const markdown = await loadJinaArticle(link);
+          applyFullArticleText(markdown, link);
+          setStatus("Full article loaded via Jina.");
+        } catch (error) {
+          setStatus(`Unable to load full article: ${error.message}`);
+          updateArticleStatus(`Unable to load via Jina: ${error.message}`);
         }
       });
 
@@ -898,6 +1286,13 @@
             }
           }
         }
+        const lowerKey = key.toLowerCase();
+        if (lowerKey === "v" && !readerView.disabled) {
+          readerView.click();
+        }
+        if (lowerKey === "d" && !readerDownload.disabled) {
+          readerDownload.click();
+        }
       });
 
       menu.addEventListener("click", (event) => {
@@ -908,6 +1303,9 @@
 
       loadState();
       renderApp();
+      if (needsImageRefresh(state.selectedFeedId)) {
+        fetchFeed(state.selectedFeedId);
+      }
       setStatus("news-terminal ready (m for menu)");
     </script>
   </body>

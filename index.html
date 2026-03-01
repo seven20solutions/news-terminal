@@ -1764,7 +1764,7 @@
           articleTextCache[link] = articleTextCache[link] || {};
           articleTextCache[link].raw = raw;
           if (state.hasOpenAiKey) {
-            setStatus("Cleaning article via OpenAI...");
+            setStatus("Cleaning article via OpenAI...", true);
             try {
               const cleaned = await cleanWithOpenAI(raw);
               articleTextCache[link].cleaned = cleaned;

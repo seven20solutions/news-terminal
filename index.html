@@ -182,12 +182,16 @@
         gap: 0.4rem;
         overflow: auto;
         flex: 1;
+        scroll-behavior: smooth;
+        scroll-snap-type: y proximity;
       }
 
       .list {
         flex: 1;
         min-height: 0;
         overflow-y: auto;
+        scroll-behavior: smooth;
+        scroll-snap-type: y proximity;
       }
 
       .list li {
@@ -201,6 +205,7 @@
         gap: 0.5rem;
         cursor: pointer;
         transition: border 0.2s ease, background 0.2s ease;
+        scroll-snap-align: start;
       }
 
       .list li[data-selected="true"] {
@@ -538,6 +543,11 @@
         color: var(--text);
       }
 
+      #feed-url,
+      #feed-label {
+        min-width: 250px;
+      }
+
       .mobile-nav {
         display: none;
       }
@@ -852,7 +862,6 @@
           <p>Select an article to read.</p>
         </div>
           <div class="menu-actions reader-actions">
-            <button id="reader-back" type="button">Back (h)</button>
             <button id="reader-view" type="button">View Link (V)</button>
             <button id="reader-download" type="button">Full Article (D)</button>
           </div>
@@ -927,6 +936,26 @@
         playback: "news-terminal-playback",
       };
 
+      const vibrationPatterns = [150];
+      const fallbackVibrationId = "haptic-fallback-wrapper";
+
+      function vibrationPattern(index = 0) {
+        if (navigator.vibrate) {
+          navigator.vibrate(vibrationPatterns[index] || vibrationPatterns[0]);
+          return;
+        }
+        if (document.getElementById(fallbackVibrationId)) {
+          return;
+        }
+        const el = document.createElement("div");
+        el.id = fallbackVibrationId;
+        el.innerHTML = `<input type="checkbox" id="${fallbackVibrationId}-toggle" switch /><label for="${fallbackVibrationId}-toggle"></label>`;
+        el.setAttribute("style", "display:none !important;opacity:0 !important;visibility:hidden !important;");
+        document.body.appendChild(el);
+        el.querySelector("label").click();
+        setTimeout(() => el.remove(), 1500);
+      }
+
       const defaultProxyTemplate = "https://api.allorigins.win/raw?url=%s";
       const jinaProxy = "https://r.jina.ai/http://";
       const fallbackOriginHeader = { Origin: window.location?.origin || window.location?.href || "http://localhost" };
@@ -939,7 +968,6 @@
       const articleMeta = document.getElementById("article-meta");
       const articleBody = document.getElementById("article-body");
       const menuTrigger = document.querySelector(".menu-trigger");
-      const readerBack = document.getElementById("reader-back");
       const readerView = document.getElementById("reader-view");
       const readerDownload = document.getElementById("reader-download");
       const menuFeedList = document.getElementById("menu-feed-list");
@@ -967,7 +995,11 @@
       const refreshButton = document.getElementById("refresh-feed");
       const articlesRefreshButton = document.getElementById("articles-refresh");
       const clearButton = document.getElementById("clear-storage");
-
+      const articleHapticCooldown = 80;
+      let articleBoundaryPositions = [];
+      let lastVibrationIndex = null;
+      let lastVibrationTime = 0;
+      let articleHapticFrame = null;
       let state = {
         feeds: [],
         articles: {},
@@ -1564,6 +1596,9 @@
           placeholder.style.pointerEvents = "none";
           articleList.append(placeholder);
           updateArticleFocus();
+          articleBoundaryPositions = [];
+          lastVibrationIndex = null;
+          lastVibrationTime = 0;
           return;
         }
         articles.forEach((article, index) => {
@@ -1588,6 +1623,43 @@
           articleList.appendChild(item);
         });
         updateArticleFocus();
+        requestAnimationFrame(updateArticleBoundaryPositions);
+      }
+
+      function getArticleBoundaryIndex(scrollTop) {
+        if (!articleBoundaryPositions.length) return null;
+        const current = Math.max(scrollTop, 0);
+        for (let i = articleBoundaryPositions.length - 1; i >= 0; i -= 1) {
+          if (current + 1 >= articleBoundaryPositions[i]) {
+            return i;
+          }
+        }
+        return 0;
+      }
+
+      function updateArticleBoundaryPositions() {
+        if (!articleList) return;
+        const items = Array.from(articleList.querySelectorAll("li[data-article-index]"));
+        if (!items.length) {
+          articleBoundaryPositions = [];
+          lastVibrationIndex = null;
+          return;
+        }
+        articleBoundaryPositions = items.map((item) => item.offsetTop);
+        lastVibrationIndex = getArticleBoundaryIndex(articleList.scrollTop);
+      }
+
+      function processArticleListHaptics() {
+        if (!articleList) return;
+        articleHapticFrame = null;
+        if (!articleBoundaryPositions.length) return;
+        const index = getArticleBoundaryIndex(articleList.scrollTop);
+        if (index === null || index === lastVibrationIndex) return;
+        const now = performance.now();
+        if (now - lastVibrationTime < articleHapticCooldown) return;
+        lastVibrationTime = now;
+        lastVibrationIndex = index;
+        vibrationPattern();
       }
 
       function renderArticleView() {
@@ -1917,6 +1989,7 @@
       menuTrigger.addEventListener("click", openMenu);
       menuClose.addEventListener("click", closeMenu);
       refreshButton.addEventListener("click", () => {
+        vibrationPattern();
         refreshCurrentFeed();
       });
       if (articlesRefreshButton) {
@@ -1971,12 +2044,12 @@
           setActivePanel(Number(button.dataset.panel));
         });
       });
-
-      readerBack.addEventListener("click", () => {
-        state.focusZone = "articles";
-        updateArticleFocus();
-        articleList.querySelector("li[data-article-index]")?.focus();
-      });
+      if (articleList) {
+        articleList.addEventListener("scroll", () => {
+          if (articleHapticFrame) return;
+          articleHapticFrame = requestAnimationFrame(processArticleListHaptics);
+        });
+      }
 
       readerView.addEventListener("click", () => {
         const link = readerView.dataset.link;
@@ -2119,7 +2192,10 @@
       if (needsImageRefresh(state.selectedFeedId)) {
         fetchFeed(state.selectedFeedId);
       }
-      window.addEventListener("resize", renderActivePanel);
+      window.addEventListener("resize", () => {
+        renderActivePanel();
+        requestAnimationFrame(updateArticleBoundaryPositions);
+      });
       setStatus("news-terminal ready (m for menu)");
     </script>
   </body>

@@ -277,6 +277,13 @@
         padding: 0.75rem;
       }
 
+      .article-preview.video-preview {
+        min-height: 0;
+        aspect-ratio: 4 / 3;
+        padding: 0;
+        background: #000;
+      }
+
       .article-preview img {
         width: 100%;
         height: 100%;
@@ -284,6 +291,15 @@
         image-rendering: pixelated;
         image-rendering: crisp-edges;
         filter: saturate(0.6) contrast(1.1) brightness(0.9) sepia(0.5) hue-rotate(190deg);
+        position: relative;
+        z-index: 1;
+      }
+
+      .article-preview iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        border-radius: 0.75rem;
         position: relative;
         z-index: 1;
       }
@@ -315,6 +331,11 @@
         mix-blend-mode: screen;
         opacity: 0.5;
         pointer-events: none;
+      }
+
+      .article-preview.video-preview::before,
+      .article-preview.video-preview::after {
+        display: none;
       }
 
       .preview-status {
@@ -729,6 +750,10 @@
           display: none;
         }
 
+        .article-preview.video-preview {
+          display: flex;
+        }
+
         .article-full-text img {
           display: none;
         }
@@ -904,6 +929,9 @@
 
       const defaultProxyTemplate = "https://api.allorigins.win/raw?url=%s";
       const jinaProxy = "https://r.jina.ai/http://";
+      const fallbackOriginHeader = { Origin: window.location?.origin || window.location?.href || "http://localhost" };
+      const MRSS_NAMESPACE = "http://search.yahoo.com/mrss/";
+      const YOUTUBE_NAMESPACE = "http://www.youtube.com/xml/schemas/2015";
 
       const menu = document.getElementById("menu");
       const feedList = document.getElementById("feed-list");
@@ -1142,23 +1170,58 @@
         return Boolean(state.imageProxyByFeed[feedId]);
       }
 
-      function updateArticlePreview(imageUrl, feedId) {
+      function updateArticlePreview(article, feedId) {
+        if (!article) {
+          articlePreview.classList.add("hidden");
+          articlePreview.setAttribute("aria-hidden", "true");
+          articlePreview.innerHTML = "";
+          articlePreview.classList.remove("video-preview");
+          return;
+        }
+        if (article.videoId) {
+          const title = escapeHtml(article.title || "YouTube video");
+          articlePreview.classList.remove("hidden");
+          articlePreview.setAttribute("aria-hidden", "false");
+          articlePreview.classList.add("video-preview");
+          articlePreview.innerHTML = `
+            <iframe
+              src="https://www.youtube-nocookie.com/embed/${article.videoId}?rel=0"
+              title="${title}"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+              loading="lazy"
+            ></iframe>
+          `;
+          return;
+        }
+        const imageUrl = article.image;
         if (!imageUrl) {
           articlePreview.classList.add("hidden");
           articlePreview.setAttribute("aria-hidden", "true");
           articlePreview.innerHTML = "";
+          articlePreview.classList.remove("video-preview");
           return;
         }
         const useProxy = shouldProxyPreview(feedId);
         const finalImage = useProxy ? formatProxyUrl(imageUrl) : imageUrl;
         articlePreview.classList.remove("hidden");
         articlePreview.setAttribute("aria-hidden", "false");
+        articlePreview.classList.remove("video-preview");
         const badge = state.usingCustomProxy ? "PROXY IMAGE (custom)" : "PROXY IMAGE";
         const statusSnippet = useProxy ? `<span class="preview-status active">${badge}</span>` : "";
         articlePreview.innerHTML = `
           <img src="${finalImage}" alt="Article preview" loading="lazy" />
           ${statusSnippet}
         `;
+        const imgElement = articlePreview.querySelector("img");
+        if (imgElement) {
+          const handleError = () => {
+            articlePreview.classList.add("hidden");
+            articlePreview.setAttribute("aria-hidden", "true");
+            articlePreview.innerHTML = "";
+          };
+          imgElement.addEventListener("error", handleError, { once: true });
+        }
       }
 
       function updateProxyStatusLine() {
@@ -1546,7 +1609,7 @@
         readerView.dataset.link = article.link;
         readerDownload.dataset.link = article.link;
         updateArticleStatus("Tap D (or the button) to load the full article via Jina or V to open the source.");
-        updateArticlePreview(article.image, state.selectedFeedId);
+        updateArticlePreview(article, state.selectedFeedId);
         renderAudioPlayer(article);
       }
 
@@ -1603,13 +1666,16 @@
       }
 
       async function attemptFetch(feed, mode, onFallback) {
-        const proxyFetch = async () => {
-          const response = await fetch(formatProxyUrl(feed.url));
+        const proxyFetch = async (includeOriginHeader = false) => {
+          const options = includeOriginHeader
+            ? { headers: fallbackOriginHeader }
+            : undefined;
+          const response = await fetch(formatProxyUrl(feed.url), options);
           return { response, fromProxy: true };
         };
 
         if (mode === "proxy") {
-          return await proxyFetch();
+          return await proxyFetch(mode === "proxy");
         }
 
         try {
@@ -1622,13 +1688,12 @@
           if (onFallback) {
             onFallback(error);
           }
-          return await proxyFetch();
+          return await proxyFetch(true);
         }
       }
 
       function extractImageUrl(item) {
-        const MRSS_NS = "http://search.yahoo.com/mrss/";
-        const mediaContentNodes = Array.from(item.getElementsByTagNameNS(MRSS_NS, "content"));
+        const mediaContentNodes = Array.from(item.getElementsByTagNameNS(MRSS_NAMESPACE, "content"));
         if (mediaContentNodes.length) {
           const preferred =
             mediaContentNodes.find((node) => node.getAttribute("isDefault") === "true") ||
@@ -1636,7 +1701,7 @@
           const attr = preferred.getAttribute("url") || preferred.getAttribute("href");
           if (attr) return attr.trim();
         }
-        const thumbnailNodes = Array.from(item.getElementsByTagNameNS(MRSS_NS, "thumbnail"));
+        const thumbnailNodes = Array.from(item.getElementsByTagNameNS(MRSS_NAMESPACE, "thumbnail"));
         if (thumbnailNodes.length) {
           const attr = thumbnailNodes[0].getAttribute("url") || thumbnailNodes[0].getAttribute("href");
           if (attr) return attr.trim();
@@ -1655,8 +1720,7 @@
       }
 
       function extractAudioInfo(item) {
-        const MRSS_NS = "http://search.yahoo.com/mrss/";
-        const mediaContentNodes = Array.from(item.getElementsByTagNameNS(MRSS_NS, "content"));
+        const mediaContentNodes = Array.from(item.getElementsByTagNameNS(MRSS_NAMESPACE, "content"));
         const audioNode = mediaContentNodes.find((node) => (node.getAttribute("type") || "").startsWith("audio/"));
         const enclosure = item.querySelector("enclosure");
         if (audioNode) {
@@ -1674,6 +1738,67 @@
           };
         }
         return null;
+      }
+
+      function cleanDescription(text) {
+        if (!text) return "";
+        return text
+          .replace(/\s+/g, " ")
+          .replace(/<script[\s\S]*?<\/script>/gi, "")
+          .trim();
+      }
+
+      function parseStandardFeed(doc, feed) {
+        const items = Array.from(doc.querySelectorAll("item"));
+        return items.map((item) => {
+          const link = item.querySelector("link")?.textContent?.trim() || "";
+          const title = item.querySelector("title")?.textContent?.trim() || "Untitled";
+          const pubDate = item.querySelector("pubDate")?.textContent?.trim();
+          const description =
+            item.querySelector("content\\:encoded")?.textContent || item.querySelector("description")?.textContent || "";
+          return {
+            title,
+            link,
+            published: pubDate,
+            summary: cleanDescription(description),
+            source: feed.title || feed.url,
+            image: extractImageUrl(item),
+            audio: extractAudioInfo(item),
+          };
+        });
+      }
+
+      function isYouTubeFeedDocument(doc) {
+        if (!doc?.documentElement) return false;
+        const root = doc.documentElement;
+        if (root.localName !== "feed" || root.namespaceURI !== "http://www.w3.org/2005/Atom") {
+          return false;
+        }
+        return doc.getElementsByTagNameNS(YOUTUBE_NAMESPACE, "videoId").length > 0;
+      }
+
+      function parseYouTubeFeed(doc, feed) {
+        const entries = Array.from(doc.getElementsByTagName("entry"));
+        return entries.map((entry) => {
+          const linkNode = Array.from(entry.getElementsByTagName("link")).find((node) => node.getAttribute("rel") === "alternate");
+          const link = linkNode?.getAttribute("href")?.trim() || entry.getElementsByTagName("link")[0]?.getAttribute("href")?.trim() || "";
+          const title = entry.getElementsByTagName("title")[0]?.textContent?.trim() || "Untitled";
+          const pubDate = entry.getElementsByTagName("published")[0]?.textContent?.trim();
+        const description =
+          entry.getElementsByTagNameNS(MRSS_NAMESPACE, "description")[0]?.textContent || entry.getElementsByTagName("summary")[0]?.textContent || "";
+        const thumbnail = entry.getElementsByTagNameNS(MRSS_NAMESPACE, "thumbnail")[0]?.getAttribute("url")?.trim() || null;
+        const videoId = entry.getElementsByTagNameNS(YOUTUBE_NAMESPACE, "videoId")[0]?.textContent?.trim();
+          return {
+            title,
+            link,
+            published: pubDate,
+            summary: cleanDescription(description),
+            source: videoId ? `YouTube · ${feed.title || feed.url}` : feed.title || feed.url,
+            image: thumbnail,
+            audio: null,
+            videoId: videoId || null,
+          };
+        });
       }
 
       function needsImageRefresh(feedId) {
@@ -1700,27 +1825,9 @@
           const text = await response.text();
           const parser = new DOMParser();
           const doc = parser.parseFromString(text, "text/xml");
-          const items = Array.from(doc.querySelectorAll("item"));
-          const parsed = items.map((item) => {
-            const link = item.querySelector("link")?.textContent?.trim() || "";
-            const title = item.querySelector("title")?.textContent?.trim() || "Untitled";
-            const pubDate = item.querySelector("pubDate")?.textContent?.trim();
-            const description =
-              item.querySelector("content\\:encoded")?.textContent || item.querySelector("description")?.textContent || "";
-            return {
-              title,
-              link,
-              published: pubDate,
-              summary: description
-                ? description
-                    .replace(/\s+/g, " ")
-                    .replace(/<script[\s\S]*?<\/script>/gi, "")
-                : "",
-              source: feed.title || feed.url,
-              image: extractImageUrl(item),
-              audio: extractAudioInfo(item),
-            };
-          });
+          const parsed = isYouTubeFeedDocument(doc)
+            ? parseYouTubeFeed(doc, feed)
+            : parseStandardFeed(doc, feed);
           state.articles[feedId] = parsed;
           state.imageProxyByFeed[feedId] = fromProxy;
           persistState();

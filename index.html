@@ -192,6 +192,8 @@
         overflow-y: auto;
         scroll-behavior: smooth;
         scroll-snap-type: y proximity;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
       }
 
       .list li {
@@ -206,6 +208,11 @@
         cursor: pointer;
         transition: border 0.2s ease, background 0.2s ease;
         scroll-snap-align: start;
+      }
+
+      .list::-webkit-scrollbar {
+        width: 0;
+        height: 0;
       }
 
       .list li[data-selected="true"] {

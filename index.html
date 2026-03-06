@@ -248,6 +248,16 @@
         color: var(--accent);
       }
 
+      .stream-badge {
+        font-size: 0.65rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        border-radius: 0.4rem;
+        border: 1px solid rgba(238, 136, 2, 0.6);
+        padding: 0.15rem 0.6rem;
+        color: var(--accent);
+      }
+
       .list li.focused {
         border-color: rgba(238, 136, 2, 0.9);
         box-shadow: 0 0 0 1px rgba(238, 136, 2, 0.4);
@@ -271,6 +281,110 @@
         line-height: 1.5;
       }
 
+      .stream-player {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+
+      .stream-player audio,
+      .stream-player video {
+        width: 100%;
+        border-radius: 0.75rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+      }
+
+      .stream-playlist {
+        margin-top: 1rem;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.3);
+      }
+
+      .stream-playlist-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.8rem;
+        font-size: 0.8rem;
+        letter-spacing: 0.08em;
+      }
+
+      .stream-playlist-actions {
+        display: inline-flex;
+        gap: 0.4rem;
+        align-items: center;
+      }
+
+      .stream-playlist-actions button {
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        background: rgba(2, 35, 88, 0.6);
+        color: var(--text);
+        padding: 0.35rem 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+      }
+
+      .stream-playlist-header button {
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        background: rgba(2, 35, 88, 0.6);
+        color: var(--text);
+        padding: 0.35rem 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+      }
+
+      .stream-playlist-list {
+        margin: 0.6rem 0 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .stream-playlist-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.4rem 0.2rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .stream-playlist-item:last-child {
+        border-bottom: none;
+      }
+
+      .stream-playlist-link {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 0.9rem;
+        letter-spacing: 0.05em;
+      }
+
+      .stream-playlist-status {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-top: 0.35rem;
+        letter-spacing: 0.08em;
+      }
+
+      .stream-playlist-error {
+        font-size: 0.75rem;
+        color: #ff7a7a;
+        margin-top: 0.35rem;
+        letter-spacing: 0.08em;
+      }
+
       .article-body p {
         margin-top: 0;
       }
@@ -290,7 +404,7 @@
       }
 
       .article-preview.video-preview {
-        min-height: 0;
+        min-height: 211px;
         aspect-ratio: 4 / 3;
         padding: 0;
         background: #000;
@@ -692,6 +806,37 @@
         gap: 0.5rem;
       }
 
+      .playlist-template-row {
+        margin-top: 0.6rem;
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .playlist-template-row input {
+        flex: 1 1 250px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--border);
+        border-radius: 0.5rem;
+        padding: 0.4rem 0.6rem;
+        color: var(--text);
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+        letter-spacing: 0.06em;
+      }
+
+      .playlist-template-row button {
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        background: rgba(2, 35, 88, 0.6);
+        color: var(--text);
+        padding: 0.4rem 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+        cursor: pointer;
+      }
+
       .menu-feed-mode-label {
         font-size: 0.7rem;
         letter-spacing: 0.12em;
@@ -887,6 +1032,7 @@
           <form id="feed-form">
             <input type="url" id="feed-url" placeholder="https://example.com/rss" required />
             <input type="text" id="feed-label" placeholder="Optional label" />
+            <input type="text" id="playlist-template" placeholder="Playlist template (use %from%/%to%)" />
             <button type="submit">Add feed</button>
           </form>
         </div>
@@ -899,7 +1045,16 @@
           <div class="menu-actions">
             <button id="refresh-feed" type="button">Refresh feed</button>
             <button id="clear-storage" type="button">Reset data</button>
+            <button id="export-feeds" type="button">Export feeds</button>
+            <button id="import-feeds" type="button">Import feeds</button>
           </div>
+          <input
+            id="feed-import-input"
+            type="file"
+            accept=".json,application/json"
+            aria-hidden="true"
+            style="display:none"
+          />
         </div>
         <div class="proxy-settings">
           <h3>Proxy settings</h3>
@@ -1002,11 +1157,19 @@
       const refreshButton = document.getElementById("refresh-feed");
       const articlesRefreshButton = document.getElementById("articles-refresh");
       const clearButton = document.getElementById("clear-storage");
+      const exportFeedsButton = document.getElementById("export-feeds");
+      const importFeedsButton = document.getElementById("import-feeds");
+      const feedImportInput = document.getElementById("feed-import-input");
+      const playlistTemplateInput = document.getElementById("playlist-template");
       const articleHapticCooldown = 80;
       let articleBoundaryPositions = [];
       let lastVibrationIndex = null;
       let lastVibrationTime = 0;
       let articleHapticFrame = null;
+      const PLAYLIST_REFRESH_MS = 5 * 60 * 1000;
+      let playlistIntervalId = null;
+      let playlistAbortController = null;
+      let activePlaylistFeedId = null;
       let state = {
         feeds: [],
         articles: {},
@@ -1025,9 +1188,244 @@
         articleViewMode: "clean",
         activePanel: 0,
         playbackProgress: {},
+        playlistTracks: {},
+        playlistLastFetched: {},
+        playlistStatusByFeed: {},
+        playlistErrorByFeed: {},
       };
       const articleTextCache = {};
       const playbackLastSaved = {};
+
+      function isStreamUrl(url) {
+        if (!url) return false;
+        return url.trim().toLowerCase().endsWith(".m3u8");
+      }
+
+      function createStreamArticle(feed) {
+        return {
+          title: "Play Radio",
+          link: feed.url,
+          summary: "Live stream",
+          source: feed.title || feed.url,
+          published: new Date().toISOString(),
+          isStream: true,
+        };
+      }
+
+      function ensureStreamArticle(feedId) {
+        if (!feedId) return;
+        const feed = state.feeds.find((item) => item.id === feedId);
+        if (!feed?.isStream) return;
+        if (!state.articles[feedId] || !state.articles[feedId].length) {
+          state.articles[feedId] = [createStreamArticle(feed)];
+        }
+      }
+
+      let playlistAutoRefreshEnabled = false;
+
+      function stopPlaylistInterval() {
+        if (playlistIntervalId) {
+          clearInterval(playlistIntervalId);
+          playlistIntervalId = null;
+        }
+      }
+
+      function stopPlaylistPolling() {
+        stopPlaylistInterval();
+        if (playlistAbortController) {
+          playlistAbortController.abort();
+          playlistAbortController = null;
+        }
+        activePlaylistFeedId = null;
+      }
+
+      function startPlaylistIntervalForFeed(feedId) {
+        if (!playlistAutoRefreshEnabled || !feedId) return;
+        stopPlaylistInterval();
+        playlistIntervalId = setInterval(() => {
+          fetchStreamPlaylist(feedId);
+        }, PLAYLIST_REFRESH_MS);
+      }
+
+      function updatePlaylistAutoRefreshButton(button) {
+        if (!button) return;
+        const icon = playlistAutoRefreshEnabled ? "⏸" : "▶";
+        const label = playlistAutoRefreshEnabled ? "Disable auto refresh" : "Enable auto refresh";
+        button.textContent = icon;
+        button.setAttribute("title", label);
+        button.setAttribute("aria-label", label);
+        button.setAttribute("aria-pressed", playlistAutoRefreshEnabled);
+      }
+
+      function startPlaylistPolling(feedId) {
+        stopPlaylistPolling();
+        const feed = state.feeds.find((item) => item.id === feedId);
+        if (!feed?.isStream || !feed.playlistTemplate) return;
+        activePlaylistFeedId = feedId;
+        fetchStreamPlaylist(feedId);
+        startPlaylistIntervalForFeed(feedId);
+      }
+
+      function formatOffsetDate(date) {
+        const pad = (value) => String(value).padStart(2, "0");
+        const year = date.getFullYear();
+        const month = pad(date.getMonth() + 1);
+        const day = pad(date.getDate());
+        const hours = pad(date.getHours());
+        const minutes = pad(date.getMinutes());
+        const seconds = pad(date.getSeconds());
+        const offsetMinutes = -date.getTimezoneOffset();
+        const sign = offsetMinutes >= 0 ? "+" : "-";
+        const absOffset = Math.abs(offsetMinutes);
+        const offsetHours = pad(Math.floor(absOffset / 60));
+        const offsetMins = pad(absOffset % 60);
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${sign}${offsetHours}:${offsetMins}`;
+      }
+
+      function buildDayRange() {
+        const today = new Date();
+        const startOfDay = new Date(today);
+        startOfDay.setHours(0, 0, 0, 0);
+        const from = new Date(startOfDay);
+        from.setDate(startOfDay.getDate() - 1);
+        const to = new Date(startOfDay);
+        to.setDate(startOfDay.getDate() + 1);
+        return { from: formatOffsetDate(from), to: formatOffsetDate(to) };
+      }
+
+      function buildPlaylistUrl(feed) {
+        const template = (feed?.playlistTemplate || "").trim();
+        if (!template) {
+          return { url: null, error: "Add a playlist template with %from% and %to%." };
+        }
+        const hasFrom = /%from%/i.test(template);
+        const hasTo = /%to%/i.test(template);
+        if (!hasFrom || !hasTo) {
+          return {
+            url: null,
+            error: "Playlist template must include both %from% and %to% placeholders.",
+          };
+        }
+        const { from, to } = buildDayRange();
+        const url = template.replace(/%from%/gi, from).replace(/%to%/gi, to);
+        return { url, error: null };
+      }
+
+      function normalizeArtist(value) {
+        if (!value) return null;
+        if (Array.isArray(value)) {
+          const normalized = value
+            .map((entry) => {
+              if (typeof entry === "string") return entry;
+              return entry?.name || entry?.artistName || null;
+            })
+            .filter(Boolean);
+          return normalized.join(", ");
+        }
+        if (typeof value === "object") {
+          return value.name || value.artistName || null;
+        }
+        return String(value);
+      }
+
+      function formatPlaylistTimestamp(value) {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.valueOf())) return value;
+        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+
+      async function fetchStreamPlaylist(feedId) {
+        if (!feedId) return;
+        const feed = state.feeds.find((item) => item.id === feedId);
+        if (!feed?.isStream || !feed.playlistTemplate) return;
+        const { url, error } = buildPlaylistUrl(feed);
+        if (!url) {
+          state.playlistStatusByFeed[feedId] = null;
+          state.playlistErrorByFeed[feedId] = error;
+          renderArticleView();
+          return;
+        }
+        if (playlistAbortController) {
+          playlistAbortController.abort();
+        }
+        const controller = new AbortController();
+        playlistAbortController = controller;
+        activePlaylistFeedId = feedId;
+        state.playlistStatusByFeed[feedId] = "Loading playlist…";
+        state.playlistErrorByFeed[feedId] = null;
+        renderArticleView();
+        try {
+          let response;
+          const attemptDirect = async () => {
+            const res = await fetch(url, { signal: controller.signal });
+            if (!res.ok) {
+              throw new Error(`Playlist request failed (${res.status})`);
+            }
+            return res;
+          };
+          const attemptProxy = async () => {
+            const proxyUrl = formatProxyUrl(url);
+            const res = await fetch(proxyUrl, { signal: controller.signal, headers: fallbackOriginHeader });
+            if (!res.ok) {
+              throw new Error(`Playlist proxy request failed (${res.status})`);
+            }
+            return res;
+          };
+          try {
+            response = await attemptDirect();
+          } catch (error) {
+            if (error.name === "AbortError") {
+              throw error;
+            }
+            response = await attemptProxy();
+          }
+          const data = await response.json();
+          const rawItems = Array.isArray(data.items)
+            ? data.items
+            : Array.isArray(data.tracks)
+            ? data.tracks
+            : Array.isArray(data.data)
+            ? data.data
+            : [];
+          const normalized = rawItems
+            .map((item) => {
+              const track = item.track || item;
+              const title =
+                track.trackTitle || track.title || track.name || item.title || "Untitled";
+              const artist =
+                normalizeArtist(track.artist || track.artists || item.artist || item.artists);
+              const timeValue =
+                item.startTime || item.start_time || item.timestamp || track.startTime || track.time || item.time;
+              const spotifyUrl =
+                track.spotifyUrl || track.spotify_uri || track.spotify_link || track.spotifyLink ||
+                item.spotifyUrl || item.spotify_uri || item.spotifyLink;
+              return {
+                title,
+                artist,
+                time: timeValue,
+                spotifyUrl: spotifyUrl || null,
+              };
+            })
+            .filter((entry) => entry.title || entry.artist);
+          const sorted = normalized.sort((a, b) => {
+            const da = new Date(a.time || 0).valueOf();
+            const db = new Date(b.time || 0).valueOf();
+            return db - da;
+          });
+          state.playlistTracks[feedId] = sorted;
+          const now = new Date();
+          state.playlistLastFetched[feedId] = now.toISOString();
+          state.playlistStatusByFeed[feedId] = `Playlist updated ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+          state.playlistErrorByFeed[feedId] = null;
+          renderArticleView();
+        } catch (error) {
+          if (error.name === "AbortError") return;
+          state.playlistErrorByFeed[feedId] = error.message;
+          state.playlistStatusByFeed[feedId] = null;
+          renderArticleView();
+        }
+      }
 
       function loadState() {
         const storedFeeds = localStorage.getItem(STORAGE_KEYS.feeds);
@@ -1037,6 +1435,11 @@
         const storedImageProxy = localStorage.getItem(STORAGE_KEYS.imageProxy);
         const storedCustomProxy = localStorage.getItem(STORAGE_KEYS.customProxy);
         state.feeds = storedFeeds ? JSON.parse(storedFeeds) : [];
+        state.feeds = state.feeds.map((feed) => ({
+          ...feed,
+          isStream: typeof feed.isStream === "boolean" ? feed.isStream : isStreamUrl(feed.url),
+          playlistTemplate: typeof feed.playlistTemplate === "string" ? feed.playlistTemplate : null,
+        }));
         state.articles = storedArticles ? JSON.parse(storedArticles) : {};
         state.proxyModeByFeed = storedProxyModes ? JSON.parse(storedProxyModes) : {};
         state.imageProxyByFeed = storedImageProxy ? JSON.parse(storedImageProxy) : {};
@@ -1318,6 +1721,107 @@
         updateOpenAiStatusLine();
       }
 
+      function buildFeedExportPayload() {
+        return state.feeds.map((feed) => ({
+          url: feed.url,
+          label: feed.title || "",
+          useProxy: state.proxyModeByFeed[feed.id] === "proxy",
+          isStream: Boolean(feed.isStream),
+          playlistTemplate: typeof feed.playlistTemplate === "string" ? feed.playlistTemplate : null,
+        }));
+      }
+
+      function exportFeedsToFile() {
+        if (!state.feeds.length) {
+          setStatus("No feeds to export.");
+          return;
+        }
+        const payload = JSON.stringify(buildFeedExportPayload(), null, 2);
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `news-terminal-feeds-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+        setStatus("Feeds exported.");
+      }
+
+      function handleFeedImportFile(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const content = reader.result;
+            if (typeof content !== "string") {
+              throw new Error("Invalid file content.");
+            }
+            const parsed = JSON.parse(content);
+            if (!Array.isArray(parsed)) {
+              throw new Error("Expected an array of feeds.");
+            }
+            const entries = parsed
+              .map((entry) => {
+                if (!entry || typeof entry !== "object") return null;
+                const url = typeof entry.url === "string" ? entry.url.trim() : "";
+                if (!url) return null;
+                const label = typeof entry.label === "string" ? entry.label.trim() || null : null;
+                const useProxy = Boolean(entry.useProxy);
+                const isStream = entry.isStream === true || isStreamUrl(url);
+                const playlistTemplate = typeof entry.playlistTemplate === "string" ? entry.playlistTemplate : null;
+                return { url, label, useProxy, isStream, playlistTemplate };
+              })
+              .filter(Boolean);
+            if (!entries.length) {
+              throw new Error("No valid feeds found in the file.");
+            }
+            let added = 0;
+            let updated = 0;
+            entries.forEach(({ url, label, useProxy, isStream, playlistTemplate }) => {
+              const id = createId(url);
+              const existing = state.feeds.find((feed) => feed.id === id);
+              if (existing) {
+                if (label) {
+                  existing.title = label;
+                }
+                if (isStream) {
+                  existing.isStream = true;
+                }
+                if (playlistTemplate) {
+                  existing.playlistTemplate = playlistTemplate;
+                }
+                state.proxyModeByFeed[id] = useProxy ? "proxy" : "auto";
+                updated += 1;
+                return;
+              }
+              state.feeds.push({
+                id,
+                url,
+                title: label,
+                isStream: Boolean(isStream) || isStreamUrl(url),
+                playlistTemplate: playlistTemplate,
+              });
+              state.proxyModeByFeed[id] = useProxy ? "proxy" : "auto";
+              added += 1;
+            });
+            if (!state.selectedFeedId && state.feeds[0]) {
+              state.selectedFeedId = state.feeds[0].id;
+            }
+            persistState();
+            renderApp();
+            setStatus(`Imported ${added + updated} feeds (${added} new, ${updated} updated).`);
+          } catch (error) {
+            setStatus(`Import failed: ${error.message}`);
+          }
+        };
+        reader.onerror = () => {
+          setStatus("Import failed: unable to read the file.");
+        };
+        reader.readAsText(file);
+      }
+
       function refreshCurrentFeed() {
         if (state.selectedFeedId) {
           fetchFeed(state.selectedFeedId);
@@ -1532,6 +2036,7 @@
           listItem.innerHTML = `
             <span class="caret">${state.selectedFeedId === feed.id ? ">" : " "}</span>
             <span class="label">${feed.title || feed.url}</span>
+            ${feed.isStream ? '<span class="stream-badge" aria-label="Stream">Stream</span>' : ""}
             <span class="mode-chip${mode === "proxy" ? " proxy" : ""}" aria-label="Mode: ${modeLabel}">${modeChar}</span>
           `;
           listItem.addEventListener("click", () => {
@@ -1569,7 +2074,18 @@
           deleteBtn.addEventListener("click", () => {
             removeFeed(feed.id);
           });
-          top.append(label, deleteBtn);
+          const leftGroup = document.createElement("div");
+          leftGroup.style.display = "flex";
+          leftGroup.style.alignItems = "center";
+          leftGroup.style.gap = "0.4rem";
+          leftGroup.append(label);
+          if (feed.isStream) {
+            const badge = document.createElement("span");
+            badge.className = "stream-badge";
+            badge.textContent = "Stream";
+            leftGroup.append(badge);
+          }
+          top.append(leftGroup, deleteBtn);
           const modeLabel = document.createElement("div");
           modeLabel.className = "menu-feed-mode-label";
           modeLabel.textContent = `Mode: ${mode === "proxy" ? "proxy" : "auto"}`;
@@ -1589,11 +2105,37 @@
           proxyBtn.addEventListener("click", () => setFeedMode(feed.id, "proxy"));
           toggle.append(directBtn, proxyBtn);
           row.append(top, modeLabel, toggle);
+          if (feed.isStream) {
+            const playlistRow = document.createElement("div");
+            playlistRow.className = "playlist-template-row";
+            const playlistInput = document.createElement("input");
+            playlistInput.type = "text";
+            playlistInput.placeholder = "Playlist template (use %from%/%to%)";
+            playlistInput.value = feed.playlistTemplate || "";
+            const playlistSave = document.createElement("button");
+            playlistSave.type = "button";
+            playlistSave.textContent = "Save playlist";
+            playlistSave.addEventListener("click", () => {
+              feed.playlistTemplate = playlistInput.value.trim() || null;
+              persistState();
+              if (state.selectedFeedId === feed.id) {
+                startPlaylistPolling(feed.id);
+              }
+              renderMenuFeedList();
+              setStatus("Playlist template saved.");
+            });
+            playlistRow.append(playlistInput, playlistSave);
+            row.append(playlistRow);
+          }
           menuFeedList.appendChild(row);
         });
       }
 
       function renderArticles() {
+        const currentFeed = state.selectedFeedId ? state.feeds.find((feed) => feed.id === state.selectedFeedId) : null;
+        if (currentFeed?.isStream) {
+          ensureStreamArticle(currentFeed.id);
+        }
         const articles = state.selectedFeedId ? state.articles[state.selectedFeedId] || [] : [];
         articleList.innerHTML = "";
         if (!articles.length) {
@@ -1670,6 +2212,92 @@
       }
 
       function renderArticleView() {
+        const feed = state.selectedFeedId ? state.feeds.find((item) => item.id === state.selectedFeedId) : null;
+        if (feed?.isStream) {
+          ensureStreamArticle(feed.id);
+          const streamUrl = feed.url;
+          const safeStreamUrl = escapeHtml(streamUrl);
+          articleMeta.textContent = feed.title ? `${feed.title} · Live stream` : "Play Radio";
+          articlePreview.classList.add("hidden");
+          articlePreview.setAttribute("aria-hidden", "true");
+          articlePreview.classList.remove("video-preview");
+          articlePreview.innerHTML = "";
+          const playlistTracks = state.playlistTracks[feed.id] || [];
+          const playlistStatus = state.playlistStatusByFeed[feed.id];
+          const playlistError = state.playlistErrorByFeed[feed.id];
+          const playlistLastFetched = state.playlistLastFetched[feed.id];
+          const playlistStatusText = playlistStatus
+            || (playlistLastFetched ? `Last updated ${formatPlaylistTimestamp(playlistLastFetched)}` : null);
+          const playlistItems = playlistTracks
+            .map((track) => {
+              const timeLabel = track.time ? `<span class="stream-playlist-time">${formatPlaylistTimestamp(track.time)} · </span>` : "";
+              const detailLabel = `${track.artist ? `${escapeHtml(track.artist)} · ` : ""}${escapeHtml(track.title)}`;
+              if (track.spotifyUrl) {
+                return `<li class="stream-playlist-item"><a class="stream-playlist-link" href="${escapeHtml(track.spotifyUrl)}" target="_blank" rel="noreferrer">${timeLabel}${detailLabel}</a></li>`;
+              }
+              return `<li class="stream-playlist-item"><span>${timeLabel}${detailLabel}</span></li>`;
+            })
+            .join("");
+          const playlistMarkup = feed.playlistTemplate
+            ? `
+              <div class="stream-playlist">
+                <div class="stream-playlist-header">
+                  <span>Playlist</span>
+                  <div class="stream-playlist-actions">
+                    <button type="button" id="playlist-refresh">Refresh playlist</button>
+                    <button type="button" id="playlist-auto-refresh" aria-pressed="false">▶</button>
+                  </div>
+                </div>
+                ${playlistTracks.length ? `<ul class="stream-playlist-list">${playlistItems}</ul>` : "<p class=\"muted\">No recent tracks yet.</p>"}
+                ${playlistError ? `<p class="stream-playlist-error">${escapeHtml(playlistError)}</p>` : playlistStatusText ? `<p class="stream-playlist-status">${escapeHtml(playlistStatusText)}</p>` : ""}
+              </div>
+            `
+            : `<div class="stream-playlist"><p class="stream-playlist-status">Add a playlist template via the menu to show the live track list.</p></div>`;
+          articleBody.innerHTML = `
+            <div class="stream-player">
+              <audio controls autoplay preload="auto">
+                <source src="${safeStreamUrl}" type="application/vnd.apple.mpegurl" />
+                Your browser cannot play this stream.
+              </audio>
+              <p class="muted">Streaming from ${escapeHtml(feed.title || streamUrl)}.</p>
+            </div>
+            ${playlistMarkup}
+          `;
+          readerView.disabled = true;
+          readerDownload.disabled = true;
+          readerView.dataset.link = "";
+          readerDownload.dataset.link = "";
+          toggleCleanButton.classList.add("hidden");
+          toggleCleanButton.disabled = true;
+          toggleStatus.textContent = "Streaming live audio";
+          state.articleViewMode = "stream";
+          articleAudio.innerHTML = "";
+          const playlistRefreshButton = document.getElementById("playlist-refresh");
+          if (playlistRefreshButton) {
+            playlistRefreshButton.addEventListener("click", (event) => {
+              event.preventDefault();
+              fetchStreamPlaylist(feed.id);
+            });
+          }
+          const playlistAutoRefreshButton = document.getElementById("playlist-auto-refresh");
+          if (playlistAutoRefreshButton) {
+            updatePlaylistAutoRefreshButton(playlistAutoRefreshButton);
+            playlistAutoRefreshButton.addEventListener("click", (event) => {
+              event.preventDefault();
+              playlistAutoRefreshEnabled = !playlistAutoRefreshEnabled;
+              if (playlistAutoRefreshEnabled && activePlaylistFeedId) {
+                startPlaylistIntervalForFeed(activePlaylistFeedId);
+                setStatus("Playlist auto-refresh enabled.");
+              } else {
+                stopPlaylistInterval();
+                setStatus("Playlist auto-refresh paused.");
+              }
+              updatePlaylistAutoRefreshButton(playlistAutoRefreshButton);
+            });
+          }
+          updateArticleStatus(`Playing stream from ${feed.title || streamUrl}`);
+          return;
+        }
         const articles = state.selectedFeedId ? state.articles[state.selectedFeedId] || [] : [];
         const article = articles[state.selectedArticleIndex];
         if (!article) {
@@ -1730,13 +2358,23 @@
       }
 
       function selectFeed(feedId) {
+        stopPlaylistPolling();
+        const feed = state.feeds.find((item) => item.id === feedId);
+        const isStream = Boolean(feed?.isStream);
         state.selectedFeedId = feedId;
         state.selectedArticleIndex = 0;
         state.focusArticleIndex = 0;
         state.focusZone = "articles";
+        if (isStream) {
+          ensureStreamArticle(feedId);
+        }
         persistState();
         renderApp();
-        if (!state.articles[feedId] || !state.articles[feedId].length) {
+        if (isStream) {
+          startPlaylistPolling(feedId);
+          const descriptor = feed?.title || feed?.url || "stream";
+          setStatus(`Ready to play ${descriptor}.`);
+        } else if (!state.articles[feedId] || !state.articles[feedId].length) {
           fetchFeed(feedId);
         }
         if (window.innerWidth <= 768) {
@@ -1882,6 +2520,8 @@
 
       function needsImageRefresh(feedId) {
         if (!feedId) return false;
+        const feed = state.feeds.find((item) => item.id === feedId);
+        if (feed?.isStream) return false;
         const articles = state.articles[feedId] || [];
         if (!articles.length) return true;
         return !articles.some((article) => article.image);
@@ -1890,6 +2530,10 @@
       async function fetchFeed(feedId) {
         const feed = state.feeds.find((item) => item.id === feedId);
         if (!feed) return;
+        if (feed.isStream) {
+          setStatus(`Stream ready: ${feed.title || feed.url}`);
+          return;
+        }
         const mode = state.proxyModeByFeed[feedId] || "auto";
         const label = state.usingCustomProxy ? "custom proxy" : mode === "proxy" ? "proxy" : "direct";
         setStatus(`Fetching feed (${label})`, true);
@@ -1930,7 +2574,7 @@
         }
       }
 
-      function addFeed(url, label) {
+      function addFeed(url, label, playlistTemplate) {
         const id = createId(url);
         if (state.feeds.find((feed) => feed.id === id)) {
           setStatus("Feed already exists.");
@@ -1940,6 +2584,8 @@
           id,
           url,
           title: label,
+          isStream: isStreamUrl(url),
+          playlistTemplate: playlistTemplate || null,
         };
         state.feeds.push(feed);
         state.proxyModeByFeed[feed.id] = "auto";
@@ -1952,6 +2598,9 @@
       }
 
       function removeFeed(feedId) {
+        if (activePlaylistFeedId === feedId) {
+          stopPlaylistPolling();
+        }
         state.feeds = state.feeds.filter((feed) => feed.id !== feedId);
         delete state.articles[feedId];
         delete state.proxyModeByFeed[feedId];
@@ -1964,6 +2613,12 @@
         state.focusArticleIndex = 0;
         persistState();
         renderApp();
+        if (state.selectedFeedId) {
+          const nextFeed = state.feeds.find((feed) => feed.id === state.selectedFeedId);
+          if (nextFeed?.isStream) {
+            startPlaylistPolling(nextFeed.id);
+          }
+        }
       }
 
       function openMenu() {
@@ -1988,9 +2643,12 @@
         const labelInput = document.getElementById("feed-label");
         const url = urlInput.value.trim();
         if (!url) return;
-        addFeed(url, labelInput.value.trim() || null);
+        addFeed(url, labelInput.value.trim() || null, playlistTemplateInput?.value.trim() || null);
         urlInput.value = "";
         labelInput.value = "";
+        if (playlistTemplateInput) {
+          playlistTemplateInput.value = "";
+        }
       });
 
       menuTrigger.addEventListener("click", openMenu);
@@ -2005,6 +2663,7 @@
         });
       }
       clearButton.addEventListener("click", () => {
+        stopPlaylistPolling();
         localStorage.clear();
         state = {
           feeds: [],
@@ -2018,9 +2677,14 @@
           imageProxyByFeed: {},
           customProxyTemplate: null,
           usingCustomProxy: false,
+          customProxyError: "",
           openAiKey: null,
           hasOpenAiKey: false,
           articleViewMode: "clean",
+          playlistTracks: {},
+          playlistLastFetched: {},
+          playlistStatusByFeed: {},
+          playlistErrorByFeed: {},
         };
         renderApp();
         proxyMessage.textContent = "";
@@ -2029,6 +2693,21 @@
         updateOpenAiStatusLine();
         setStatus("Storage cleared.");
       });
+
+      if (exportFeedsButton) {
+        exportFeedsButton.addEventListener("click", exportFeedsToFile);
+      }
+      if (importFeedsButton && feedImportInput) {
+        importFeedsButton.addEventListener("click", () => {
+          feedImportInput.value = "";
+          feedImportInput.click();
+        });
+        feedImportInput.addEventListener("change", () => {
+          const file = feedImportInput.files?.[0];
+          handleFeedImportFile(file);
+          feedImportInput.value = "";
+        });
+      }
 
       saveProxyButton.addEventListener("click", handleSaveProxy);
       resetProxyButton.addEventListener("click", handleResetProxy);
@@ -2196,6 +2875,10 @@
 
       loadState();
       renderApp();
+      const initialFeed = state.feeds.find((feed) => feed.id === state.selectedFeedId);
+      if (initialFeed?.isStream) {
+        startPlaylistPolling(initialFeed.id);
+      }
       if (needsImageRefresh(state.selectedFeedId)) {
         fetchFeed(state.selectedFeedId);
       }

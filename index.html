@@ -953,6 +953,23 @@
           margin-bottom: 0.3rem;
         }
 
+        #feed-screen {
+          min-height: 0;
+        }
+
+        #feed-screen.visible {
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        #feed-screen.visible .list {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: 2rem;
+        }
+
         .mobile-nav {
           display: none;
         }

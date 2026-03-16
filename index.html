@@ -1032,7 +1032,8 @@
         </div>
           <div class="menu-actions reader-actions">
             <button id="reader-view" type="button">View Link (V)</button>
-            <button id="reader-download" type="button">Full Article (D)</button>
+            <button id="reader-download" type="button">Download (D)</button>
+            <button id="reader-share" type="button" aria-label="Share" disabled>Share</button>
           </div>
           <div class="reader-toggle-row">
             <button id="reader-toggle" type="button" class="reader-toggle hidden">View raw (O)</button>
@@ -1149,6 +1150,7 @@
       const menuTrigger = document.querySelector(".menu-trigger");
       const readerView = document.getElementById("reader-view");
       const readerDownload = document.getElementById("reader-download");
+      const readerShare = document.getElementById("reader-share");
       const menuFeedList = document.getElementById("menu-feed-list");
       const menuClose = document.querySelector(".menu-close");
       const statusBar = document.querySelector(".prompt");
@@ -2332,6 +2334,10 @@
         readerDownload.disabled = !article.link;
         readerView.dataset.link = article.link;
         readerDownload.dataset.link = article.link;
+        if (readerShare) {
+          readerShare.dataset.link = article.link;
+          readerShare.disabled = !article.link;
+        }
         updateArticleStatus("Tap D (or the button) to load the full article via Jina or V to open the source.");
         updateArticlePreview(article, state.selectedFeedId);
         renderAudioPlayer(article);
@@ -2426,7 +2432,8 @@
         }
       }
 
-      function extractImageUrl(item) {
+      // Extract an image URL for an item, with support for itunes/channel images and MRSS/enclosure fallbacks
+      function extractImageUrl(item, channelDoc) {
         const mediaContentNodes = Array.from(item.getElementsByTagNameNS(MRSS_NAMESPACE, "content"));
         if (mediaContentNodes.length) {
           const preferred =
@@ -2435,22 +2442,39 @@
           const attr = preferred.getAttribute("url") || preferred.getAttribute("href");
           if (attr) return attr.trim();
         }
+        // itunes:image on the item
+        try {
+          const itunesImage = item.getElementsByTagName('itunes:image')[0];
+          if (itunesImage && itunesImage.getAttribute) {
+            const href = itunesImage.getAttribute('href') || itunesImage.getAttribute('url');
+            if (href) return href.trim();
+          }
+        } catch (e) {
+          // ignore
+        }
         const thumbnailNodes = Array.from(item.getElementsByTagNameNS(MRSS_NAMESPACE, "thumbnail"));
         if (thumbnailNodes.length) {
           const attr = thumbnailNodes[0].getAttribute("url") || thumbnailNodes[0].getAttribute("href");
           if (attr) return attr.trim();
         }
-        const enclosure = item.querySelector("enclosure");
-        if (enclosure) {
-          const attr = enclosure.getAttribute("url") || enclosure.getAttribute("href");
-          if (attr) return attr.trim();
-        }
-        const content = item.getElementsByTagName("content:encoded")[0]?.textContent || "";
-        const description = item.querySelector("description")?.textContent || "";
-        const htmlSource = content || description;
-        const imgMatch = htmlSource.match(/<img[^>]+src=["']([^"']+)["']/i);
-        if (imgMatch) return imgMatch[1];
-        return null;
+         const enclosure = item.querySelector("enclosure");
+         if (enclosure) {
+           const attr = enclosure.getAttribute("url") || enclosure.getAttribute("href");
+           if (attr) return attr.trim();
+         }
+         // fallback to channel-level image
+         try {
+           const channelImageUrl = channelDoc && channelDoc.querySelector && channelDoc.querySelector('channel > image > url')?.textContent;
+           if (channelImageUrl) return channelImageUrl.trim();
+         } catch (e) {
+           // ignore
+         }
+         const content = item.getElementsByTagName("content:encoded")[0]?.textContent || "";
+         const description = item.querySelector("description")?.textContent || "";
+         const htmlSource = content || description;
+         const imgMatch = htmlSource.match(/<img[^>]+src=["']([^"']+)["']/i);
+         if (imgMatch) return imgMatch[1];
+         return null;
       }
 
       function extractAudioInfo(item) {
@@ -2459,17 +2483,17 @@
         const enclosure = item.querySelector("enclosure");
         if (audioNode) {
           return {
-            url: audioNode.getAttribute("url")?.trim() || null,
+            url: (audioNode.getAttribute("url") || audioNode.getAttribute('src'))?.trim() || null,
             type: audioNode.getAttribute("type") || "audio/mpeg",
             length: audioNode.getAttribute("length") || null,
           };
         }
-        if (enclosure && (enclosure.getAttribute("type") || "").startsWith("audio/")) {
-          return {
-            url: enclosure.getAttribute("url")?.trim() || null,
-            type: enclosure.getAttribute("type") || "audio/mpeg",
-            length: enclosure.getAttribute("length") || null,
-          };
+        if (enclosure) {
+          const url = (enclosure.getAttribute("url") || enclosure.getAttribute("href"))?.trim() || null;
+          const type = enclosure.getAttribute("type") || "audio/mpeg";
+          if (url && type.startsWith("audio/")) {
+            return { url, type, length: enclosure.getAttribute("length") || null };
+          }
         }
         return null;
       }
@@ -2488,15 +2512,16 @@
           const link = item.querySelector("link")?.textContent?.trim() || "";
           const title = item.querySelector("title")?.textContent?.trim() || "Untitled";
           const pubDate = item.querySelector("pubDate")?.textContent?.trim();
-          const description =
-            item.querySelector("content\\:encoded")?.textContent || item.querySelector("description")?.textContent || "";
+          const contentEncoded = item.querySelector("content\\:encoded")?.textContent || "";
+          const itunesSummary = item.getElementsByTagName('itunes:summary')[0]?.textContent || item.getElementsByTagName('itunes:subtitle')[0]?.textContent || "";
+          const description = itunesSummary || contentEncoded || item.querySelector("description")?.textContent || "";
           return {
             title,
             link,
             published: pubDate,
             summary: cleanDescription(description),
             source: feed.title || feed.url,
-            image: extractImageUrl(item),
+            image: extractImageUrl(item, doc),
             audio: extractAudioInfo(item),
           };
         });
@@ -2518,8 +2543,7 @@
           const link = linkNode?.getAttribute("href")?.trim() || entry.getElementsByTagName("link")[0]?.getAttribute("href")?.trim() || "";
           const title = entry.getElementsByTagName("title")[0]?.textContent?.trim() || "Untitled";
           const pubDate = entry.getElementsByTagName("published")[0]?.textContent?.trim();
-        const description =
-          entry.getElementsByTagNameNS(MRSS_NAMESPACE, "description")[0]?.textContent || entry.getElementsByTagName("summary")[0]?.textContent || "";
+        const description = entry.getElementsByTagNameNS(MRSS_NAMESPACE, "description")[0]?.textContent || entry.getElementsByTagName("summary")[0]?.textContent || "";
         const thumbnail = entry.getElementsByTagNameNS(MRSS_NAMESPACE, "thumbnail")[0]?.getAttribute("url")?.trim() || null;
         const videoId = entry.getElementsByTagNameNS(YOUTUBE_NAMESPACE, "videoId")[0]?.textContent?.trim();
           return {
@@ -2563,8 +2587,26 @@
             throw new Error(`Failed to load feed (${response.status})`);
           }
           const text = await response.text();
+
+          // Quick diagnostic: ensure we have XML-like content
+          if (!text || !text.trim().startsWith('<')) {
+            console.error('Feed response did not start with XML: ', text && text.slice(0, 2000));
+            setStatus('Feed fetch returned a non-XML response (see console)');
+            state.playlistErrorByFeed[feedId] = 'Non-XML response';
+            renderArticleView();
+            return;
+          }
+
           const parser = new DOMParser();
           const doc = parser.parseFromString(text, "text/xml");
+          if (doc.getElementsByTagName('parsererror').length) {
+            console.error('XML parse error for feed, response preview:', text.slice(0, 2000));
+            setStatus('XML parse error when parsing feed (see console)');
+            state.playlistErrorByFeed[feedId] = 'XML parse error';
+            renderArticleView();
+            return;
+          }
+
           const parsed = isYouTubeFeedDocument(doc)
             ? parseYouTubeFeed(doc, feed)
             : parseStandardFeed(doc, feed);
@@ -2575,6 +2617,7 @@
           const fallbackNote = mode === "auto" && fromProxy ? " (fallback)" : "";
           setStatus(`Feed refreshed (${finalMode}${fallbackNote})`);
         } catch (error) {
+          console.error('Fetch feed error', error);
           setStatus(`Unable to fetch feed: ${error.message}`);
         }
         renderApp();
@@ -2760,6 +2803,40 @@
           window.open(link, "_blank", "noopener");
         }
       });
+
+      if (readerShare) {
+        readerShare.addEventListener("click", async () => {
+          const link = readerShare.dataset.link;
+          if (!link) return;
+
+          const payload = { title: document.title || document.querySelector('h2')?.textContent || '', url: link };
+
+          if (navigator.share) {
+            try {
+              await navigator.share(payload);
+              // No analytics per request
+              return;
+            } catch (err) {
+              // user cancelled or failed - fall through to clipboard fallback
+              // console.info('Share failed or cancelled', err);
+            }
+          }
+
+          // Fallback: copy URL to clipboard and show confirmation
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(link);
+              showReaderToast('Link copied to clipboard');
+            } else {
+              // Last resort: prompt
+              prompt('Copy this link', link);
+            }
+          } catch (err) {
+            // If clipboard fails, show prompt
+            prompt('Copy this link', link);
+          }
+        });
+      }
       readerDownload.addEventListener("click", async () => {
         const link = readerDownload.dataset.link;
         if (!link) return;
@@ -2804,6 +2881,43 @@
         state.articleViewMode = state.articleViewMode === "clean" ? "raw" : "clean";
         renderArticleBodyFromCache(link);
       });
+
+      // Simple reader toast for copy confirmation
+      (function () {
+        const toastId = 'reader-toast';
+        function createToastEl() {
+          const el = document.createElement('div');
+          el.id = toastId;
+          el.setAttribute('role', 'status');
+          el.setAttribute('aria-live', 'polite');
+          el.style.position = 'fixed';
+          el.style.right = '1rem';
+          el.style.bottom = '1rem';
+          el.style.background = 'rgba(0,0,0,0.7)';
+          el.style.color = 'white';
+          el.style.padding = '0.6rem 0.9rem';
+          el.style.borderRadius = '0.5rem';
+          el.style.fontFamily = '"Topaz A1200", "IBM Plex Mono", monospace';
+          el.style.fontSize = '0.9rem';
+          el.style.zIndex = 9999;
+          el.style.display = 'none';
+          document.body.appendChild(el);
+          return el;
+        }
+
+        let toastEl = document.getElementById(toastId) || createToastEl();
+
+        window.showReaderToast = function (message, timeout = 2200) {
+          if (!toastEl) toastEl = createToastEl();
+          toastEl.textContent = message;
+          toastEl.style.display = 'block';
+          toastEl.style.opacity = '1';
+          clearTimeout(window.showReaderToast._t);
+          window.showReaderToast._t = setTimeout(() => {
+            if (toastEl) toastEl.style.display = 'none';
+          }, timeout);
+        };
+      }());
 
       document.addEventListener("keydown", (event) => {
         if (

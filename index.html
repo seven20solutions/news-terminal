@@ -2923,6 +2923,27 @@
           return v || null;
         }
 
+        // Helper: wait for one of the events on a target or timeout
+        function awaitEventOrTimeout(target, events, timeoutMs = 8000) {
+          return new Promise((resolve, reject) => {
+            let finished = false;
+            const to = setTimeout(() => {
+              if (finished) return;
+              finished = true;
+              events.forEach((e) => target.removeEventListener(e, handler));
+              reject(new Error('timeout'));
+            }, timeoutMs);
+            function handler(ev) {
+              if (finished) return;
+              finished = true;
+              clearTimeout(to);
+              events.forEach((e) => target.removeEventListener(e, handler));
+              resolve(ev);
+            }
+            events.forEach((e) => target.addEventListener(e, handler, { once: true }));
+          });
+        }
+
         // Ensure voices loaded and persist preference if Karen exists
         if (speechSynthesis.onvoiceschanged !== undefined) {
           speechSynthesis.onvoiceschanged = () => {
@@ -3308,7 +3329,7 @@
 
         // Browser WebSpeech wrapper that returns a Promise resolved on end/cancel
         function playWebSpeechChunk(text) {
-          return new Promise((resolve) => {
+          return new Promise((resolve, reject) => {
             if (!usingWebSpeech) return resolve(false);
             try {
               window.speechSynthesis.cancel();
@@ -3317,12 +3338,19 @@
               if (voice) utter.voice = voice;
               utter.rate = 1.0;
               utter.pitch = 1.0;
-              utter.onstart = () => { setTtsStatus('Playing (browser voice)'); ttsPause.style.display = ''; ttsStop.style.display = ''; };
-              utter.onend = () => { setTtsStatus(''); ttsPause.style.display = 'none'; ttsStop.style.display = 'none'; resolve(true); };
-              utter.onerror = () => { resolve(false); };
+              let started = false;
+              const startTimer = setTimeout(() => {
+                if (!started) {
+                  try { window.speechSynthesis.cancel(); } catch (e) {}
+                  return reject(new Error('webspeech-start-timeout'));
+                }
+              }, 3000);
+              utter.onstart = () => { started = true; clearTimeout(startTimer); setTtsStatus('Playing (browser voice)'); ttsPause.style.display = ''; ttsStop.style.display = ''; };
+              utter.onend = () => { clearTimeout(startTimer); setTtsStatus(''); ttsPause.style.display = 'none'; ttsStop.style.display = 'none'; resolve(true); };
+              utter.onerror = (ev) => { clearTimeout(startTimer); reject(new Error('webspeech-error')); };
               speechUtterance = utter;
               window.speechSynthesis.speak(utter);
-            } catch (e) { console.warn('playWebSpeechChunk error', e); resolve(false); }
+            } catch (e) { console.warn('playWebSpeechChunk error', e); reject(e); }
           });
         }
 
@@ -3340,9 +3368,15 @@
                 await playAdaptiveTts(chunk);
               } else {
                 // Browser TTS fallback that returns when chunk finishes
-                const ok = await playWebSpeechChunk(chunk);
-                if (!ok) {
-                  // if browser fails, try adaptive server TTS for the chunk
+                try {
+                  const ok = await playWebSpeechChunk(chunk);
+                  if (!ok) {
+                    // if browser fails, try adaptive server TTS for the chunk
+                    await playAdaptiveTts(chunk);
+                  }
+                } catch (webErr) {
+                  console.warn('WebSpeech chunk failed', webErr);
+                  // fallback to server TTS for this chunk
                   await playAdaptiveTts(chunk);
                 }
               }
@@ -3377,15 +3411,21 @@
           return [words.slice(0, half).join(' '), words.slice(half).join(' ')];
         }
 
+        // Fetch with validation and timeout. Returns { arrayBuffer, contentType }
         async function fetchTtsArrayBuffer(text, signal) {
           const endpoints = [
             'https://api.openai.com/v1/audio/speech',
             '/api/tts',
             'http://localhost:8006/api/tts',
           ];
-          const safeKey = (state.openAiKey || '').trim().replace(/[^\x00-\x7F]/g, '');
+          const safeKey = (state.openAiKey || '').trim().replace(/[\x00-\x7F]/g, '');
+          const MIN_AUDIO_BYTES = 4 * 1024; // 4 KB minimum
+          const FETCH_TIMEOUT = 20000; // 20s
+
           for (let i = 0; i < endpoints.length; i += 1) {
             const url = endpoints[i];
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
             try {
               let headers = { 'Content-Type': 'application/json' };
               let bodyPayload = null;
@@ -3400,7 +3440,7 @@
                 const bodyObj = { text };
                 try {
                   if (state && state.hasOpenAiKey && state.openAiKey) {
-                    const safe = (state.openAiKey || '').trim().replace(/[^\x00-\x7F]/g, '');
+                    const safe = (state.openAiKey || '').trim().replace(/[\x00-\x7F]/g, '');
                     if (safe) bodyObj.openaiKey = safe;
                   }
                 } catch (e) {}
@@ -3408,7 +3448,8 @@
                 bodyPayload = JSON.stringify(bodyObj);
               }
 
-              const res = await fetch(url, { method: 'POST', headers, body: bodyPayload, signal });
+              const res = await fetch(url, { method: 'POST', headers, body: bodyPayload, signal: controller.signal });
+              clearTimeout(timeoutId);
               if (!res.ok) {
                 const txt = await res.text().catch(() => '');
                 console.warn(`TTS request to ${url} failed (${res.status})`, txt);
@@ -3421,9 +3462,17 @@
                 continue;
               }
               const arrayBuffer = await res.arrayBuffer();
+              if ((arrayBuffer.byteLength || 0) < MIN_AUDIO_BYTES) {
+                console.warn(`TTS provider returned too-small audio from ${url}: ${arrayBuffer.byteLength}`);
+                continue;
+              }
               return { arrayBuffer, contentType };
             } catch (err) {
-              if (err.name === 'AbortError') throw err;
+              clearTimeout(timeoutId);
+              if (err.name === 'AbortError') {
+                console.warn('TTS fetch aborted (timeout) for', url);
+                continue;
+              }
               console.warn('TTS fetch error for', url, err);
             }
           }
@@ -3464,21 +3513,26 @@
             } catch (e) { console.warn('WebAudio attempt failed', e); }
 
             try {
-              const blob = new Blob([arrayBuffer], { type: contentType || 'audio/mpeg' });
-              const blobUrl = URL.createObjectURL(blob);
-              if (audioEl) { audioEl.pause(); try { URL.revokeObjectURL(audioEl.src); } catch (e) {} }
-              audioEl = new Audio(blobUrl);
-              audioEl.controls = false;
-              audioEl.onended = () => { played = true; resolve(); };
-              audioEl.onplay = () => { setTtsStatus('Playing (server voice)'); ttsPause.style.display = ''; ttsStop.style.display = ''; };
-              audioEl.onerror = (ev) => { if (!played) reject(new Error('Audio element playback failed')); };
-              try {
-                await audioEl.play();
-              } catch (playErr) {
-                console.warn('audioEl.play() failed in playArrayBufferFully', playErr);
-                // If play is blocked, reject so caller can fallback
-                return reject(playErr);
-              }
+                const blob = new Blob([arrayBuffer], { type: contentType || 'audio/mpeg' });
+                const blobUrl = URL.createObjectURL(blob);
+                if (audioEl) { audioEl.pause(); try { URL.revokeObjectURL(audioEl.src); } catch (e) {} }
+                audioEl = new Audio(blobUrl);
+                audioEl.controls = false;
+                audioEl.onended = () => { played = true; resolve(); };
+                audioEl.onplay = () => { setTtsStatus('Playing (server voice)'); ttsPause.style.display = ''; ttsStop.style.display = ''; };
+                audioEl.onerror = (ev) => { if (!played) reject(new Error('Audio element playback failed')); };
+                try {
+                  // Wait for play() promise and a playing event within timeout
+                  const playPromise = audioEl.play();
+                  if (playPromise && typeof playPromise.then === 'function') {
+                    await playPromise;
+                  }
+                  // Ensure playback actually started (some browsers don't reject play())
+                  await awaitEventOrTimeout(audioEl, ['playing', 'canplaythrough'], 8000);
+                } catch (playErr) {
+                  console.warn('audioEl.play() failed or did not start in time', playErr);
+                  return reject(playErr);
+                }
             } catch (e) {
               return reject(e);
             }
@@ -3493,6 +3547,8 @@
             const controller = new AbortController();
             try {
               const { arrayBuffer, contentType } = await fetchTtsArrayBuffer(text, controller.signal);
+              // Verify playback start and treat failures as errors so caller falls
+              // back to webspeech or the next provider.
               await playArrayBufferFully(arrayBuffer, contentType);
             } catch (err) {
               console.warn('Adaptive TTS short text failed', err);
@@ -3504,13 +3560,13 @@
 
           // Attempt to fetch for this text
           const controller = new AbortController();
-          try {
-            const { arrayBuffer, contentType } = await fetchTtsArrayBuffer(text, controller.signal);
-            const size = arrayBuffer.byteLength || 0;
-            if (size <= MAX_TTS_BYTES) {
-              await playArrayBufferFully(arrayBuffer, contentType);
-              return;
-            }
+           try {
+             const { arrayBuffer, contentType } = await fetchTtsArrayBuffer(text, controller.signal);
+             const size = arrayBuffer.byteLength || 0;
+             if (size <= MAX_TTS_BYTES) {
+               await playArrayBufferFully(arrayBuffer, contentType);
+               return;
+             }
             // too large: split and play halves
             console.warn(`TTS response ${size} bytes exceeds ${MAX_TTS_BYTES}, splitting text`);
             const parts = splitTextInHalfPreferSentences(text);

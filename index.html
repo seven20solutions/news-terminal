@@ -2864,6 +2864,7 @@
         let speechUtterance = null;
         const usingWebSpeech = 'speechSynthesis' in window && !!window.speechSynthesis;
         let ttsChunkAbort = false;
+        let ttsPopupWindow = null;
 
         // Workaround to unlock audio playback on platforms that require a
         // user gesture. Call this synchronously from the click handler.

@@ -3305,7 +3305,7 @@
 
         // High-level chunked playback: uses server TTS when key present, otherwise browser TTS
         async function playTextChunks(text) {
-          const chunks = splitTextIntoChunks(text, 900);
+          const chunks = splitTextIntoChunks(text, 500);
           if (!chunks.length) return;
           ttsChunkAbort = false;
           for (let i = 0; i < chunks.length; i += 1) {
@@ -3332,7 +3332,7 @@
         }
 
         // Adaptive TTS: fetches TTS for `text`, checks byte size and splits recursively
-        const MAX_TTS_BYTES = 300 * 1024; // 300 KB threshold
+        const MAX_TTS_BYTES = 250 * 1024; // 250 KB threshold
         const MIN_TTS_CHARS = 120; // don't split below this length
 
         function splitTextInHalfPreferSentences(text) {

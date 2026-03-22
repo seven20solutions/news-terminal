@@ -2521,7 +2521,27 @@
       function parseStandardFeed(doc, feed) {
         const items = Array.from(doc.querySelectorAll("item"));
         return items.map((item) => {
-          const link = item.querySelector("link")?.textContent?.trim() || "";
+          let link = item.querySelector("link")?.textContent?.trim() || "";
+
+          // If no explicit <link> text content, fall back to <guid> when it
+          // clearly contains a URL or is marked as a permalink. This preserves
+          // existing behavior for feeds that provide a link text node while
+          // adding compatibility for feeds that only expose the URL in <guid>.
+          if (!link) {
+            try {
+              const guidNode = item.querySelector("guid");
+              if (guidNode) {
+                const gtext = (guidNode.textContent || "").trim();
+                const attr = guidNode.getAttribute && guidNode.getAttribute('isPermaLink');
+                const isPerma = attr === 'true' || attr === '1';
+                if (/^https?:\/\//i.test(gtext) || (gtext && isPerma)) {
+                  link = gtext;
+                }
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
           const title = item.querySelector("title")?.textContent?.trim() || "Untitled";
           const pubDate = item.querySelector("pubDate")?.textContent?.trim();
           const contentEncoded = item.querySelector("content\\:encoded")?.textContent || "";

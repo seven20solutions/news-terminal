@@ -2864,8 +2864,6 @@
         let speechUtterance = null;
         const usingWebSpeech = 'speechSynthesis' in window && !!window.speechSynthesis;
         let ttsChunkAbort = false;
-        // Popup window opened synchronously from user gesture to host a blob player
-        let ttsPopupWindow = null;
 
         // Workaround to unlock audio playback on platforms that require a
         // user gesture. Call this synchronously from the click handler.
@@ -3194,10 +3192,6 @@
         ttsListen.addEventListener('click', async () => {
           const text = extractArticleText();
           if (!text) { setTtsStatus('No article text found'); return; }
-          // Pre-open a popup synchronously to avoid later popup blocking when showing the blob
-          try {
-            ttsPopupWindow = ttsPopupWindow && !ttsPopupWindow.closed ? ttsPopupWindow : window.open('', '_blank', 'noopener');
-          } catch (e) { ttsPopupWindow = null; }
           // Unlock playback on some platforms (Safari/iOS requires a user gesture)
           try { unlockAudioPlayback(); } catch (e) { /* ignore */ }
           // If user has provided an OpenAI key in the app settings, prefer server TTS
@@ -3459,50 +3453,7 @@
                 await audioEl.play();
               } catch (playErr) {
                 console.warn('audioEl.play() failed in playArrayBufferFully', playErr);
-                // If play is blocked, attempt to open the blob in the previously opened popup.
-                try {
-                  if (ttsPopupWindow) {
-                    try {
-                      ttsPopupWindow.document.open();
-                      ttsPopupWindow.document.write(`<!doctype html><meta charset="utf-8"><title>TTS Audio</title><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;">` +
-                        `<audio controls autoplay src="${blobUrl}" style="width:100%;max-width:640px"></audio>` +
-                        `<script>window.addEventListener('unload',()=>{try{URL.revokeObjectURL('${blobUrl}')}catch(e){}})</script></body>`);
-                      ttsPopupWindow.document.close();
-                      return resolve();
-                    } catch (e) {
-                      try { ttsPopupWindow.location.href = blobUrl; return resolve(); } catch (e2) { /* ignore */ }
-                    }
-                  }
-                } catch (e) { /* ignore */ }
-
-                // If popup isn't available, fall back to save/share/open approaches
-                try {
-                  const shared = await shareBlobIfPossible(blob, 'tts-audio.mp3');
-                  if (shared) return resolve();
-                } catch (e) { /* ignore */ }
-                try {
-                  const saved = await saveBlobToFile(blob, 'tts-audio.mp3');
-                  if (saved) return resolve();
-                } catch (e) { /* ignore */ }
-                try {
-                  const tmpUrl = URL.createObjectURL(blob);
-                  const manualAudio = document.createElement('audio');
-                  manualAudio.controls = true;
-                  manualAudio.src = tmpUrl;
-                  manualAudio.style.width = '100%';
-                  manualAudio.id = 'reader-manual-audio';
-                  const parent = document.getElementById('article-audio') || document.getElementById('article-body');
-                  if (parent) {
-                    const prev = document.getElementById('reader-manual-audio');
-                    if (prev) prev.remove();
-                    parent.appendChild(manualAudio);
-                  } else {
-                    document.body.appendChild(manualAudio);
-                  }
-                  return resolve();
-                } catch (e) { /* ignore */ }
-
-                // If all fallbacks fail, reject so caller can try other paths
+                // If play is blocked, reject so caller can fallback
                 return reject(playErr);
               }
             } catch (e) {

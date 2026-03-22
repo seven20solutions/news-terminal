@@ -1041,6 +1041,7 @@
           <div class="menu-actions reader-actions">
             <button id="reader-listen" type="button">Listen</button>
             <button id="reader-view" type="button">Link</button>
+            <button id="reader-archive" type="button">Archive</button>
             <button id="reader-download" type="button">Read</button>
             <button id="reader-share" type="button" aria-label="Share" disabled>Share</button>
             <button id="reader-tts-pause" type="button" style="display:none">Pause</button>
@@ -1160,9 +1161,10 @@
       const articleMeta = document.getElementById("article-meta");
       const articleBody = document.getElementById("article-body");
       const menuTrigger = document.querySelector(".menu-trigger");
-      const readerView = document.getElementById("reader-view");
-      const readerDownload = document.getElementById("reader-download");
-      const readerShare = document.getElementById("reader-share");
+       const readerView = document.getElementById("reader-view");
+       const readerArchive = document.getElementById("reader-archive");
+       const readerDownload = document.getElementById("reader-download");
+       const readerShare = document.getElementById("reader-share");
       const menuFeedList = document.getElementById("menu-feed-list");
       const menuClose = document.querySelector(".menu-close");
       const statusBar = document.querySelector(".prompt");
@@ -2342,14 +2344,18 @@
         const audioNote = article.audio?.url ? " · Audio available" : "";
         articleMeta.innerHTML = `${article.source ? `${article.source} · ` : ""}${new Date(article.published || Date.now()).toLocaleString()}${audioNote}`;
         articleBody.innerHTML = article.summary || "<p>No summary available.</p>";
-        readerView.disabled = !article.link;
-        readerDownload.disabled = !article.link;
-        readerView.dataset.link = article.link;
-        readerDownload.dataset.link = article.link;
-        if (readerShare) {
-          readerShare.dataset.link = article.link;
-          readerShare.disabled = !article.link;
-        }
+          readerView.disabled = !article.link;
+          readerDownload.disabled = !article.link;
+          readerView.dataset.link = article.link;
+          readerDownload.dataset.link = article.link;
+          if (readerShare) {
+            readerShare.dataset.link = article.link;
+            readerShare.disabled = !article.link;
+          }
+          if (readerArchive) {
+            readerArchive.dataset.link = article.link;
+            readerArchive.disabled = !article.link;
+          }
         updateArticleStatus("Tap D (or the button) to load the full article via Jina or V to open the source.");
         updateArticlePreview(article, state.selectedFeedId);
         renderAudioPlayer(article);
@@ -2836,6 +2842,17 @@
           }
         });
 
+        if (readerArchive) {
+          readerArchive.addEventListener("click", () => {
+            const link = readerArchive.dataset.link || readerView.dataset.link;
+            if (!link) return;
+            // Prefix with archive.md — ensure we don't double-prefix if already archived
+            const prefix = "https://archive.md/";
+            const normalized = link.startsWith(prefix) ? link : `${prefix}${link}`;
+            window.open(normalized, "_blank", "noopener");
+          });
+        }
+
         
       // Text-to-Speech: progressive enhancement (Web Speech API fallback)
       (function () {
@@ -3040,8 +3057,8 @@
         });
       }());
 
-      if (readerShare) {
-        readerShare.addEventListener("click", async () => {
+        if (readerShare) {
+          readerShare.addEventListener("click", async () => {
           const link = readerShare.dataset.link;
           if (!link) return;
 
@@ -3106,6 +3123,15 @@
         } finally {
           readerDownload.disabled = false;
           toggleCleanButton.disabled = false;
+        }
+        if (readerArchive) {
+          readerArchive.addEventListener("click", () => {
+            const link = readerArchive.dataset.link || readerView.dataset.link;
+            if (!link) return;
+            const prefix = "https://archive.md/";
+            const normalized = link.startsWith(prefix) ? link : `${prefix}${link}`;
+            window.open(normalized, "_blank", "noopener");
+          });
         }
       });
 

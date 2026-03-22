@@ -2816,14 +2816,7 @@
           }
         });
 
-        // Read button: open the article link in a new tab (same behavior as Link button)
-        const readButton = document.getElementById('reader-download');
-        readButton.addEventListener('click', () => {
-          const link = readerDownload.dataset.link;
-          if (!link) return;
-          window.open(link, '_blank', 'noopener');
-        });
-
+        
       // Text-to-Speech: progressive enhancement (Web Speech API fallback)
       (function () {
         const ttsListen = document.getElementById('reader-listen');

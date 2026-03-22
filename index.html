@@ -3033,6 +3033,45 @@
               const arrayBuffer = await res.arrayBuffer();
               const blob = new Blob([arrayBuffer], { type: contentType || 'audio/mpeg' });
               const blobUrl = URL.createObjectURL(blob);
+
+              // On iOS and some Safari contexts, calling audio.play() after an
+              // async fetch can be blocked even when initiated from a click. Try
+              // playing via WebAudio first on those platforms since we already
+              // attempted to unlock audio on the click.
+              const isIos = /iP(hone|od|ad)/.test(navigator.userAgent) ||
+                (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+
+              if (isIos) {
+                try {
+                  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                  if (AudioCtx) {
+                    const ctx = new AudioCtx();
+                    if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+                      await ctx.resume();
+                    }
+                    try {
+                      const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
+                      const src = ctx.createBufferSource();
+                      src.buffer = decoded;
+                      src.connect(ctx.destination);
+                      src.start(0);
+                      if (ttsStop) {
+                        ttsStop.style.display = '';
+                        ttsStop.onclick = () => { try { src.stop(); } catch (e) {}; try { ctx.close(); } catch (e) {}; setTtsStatus(''); ttsStop.style.display='none'; };
+                      }
+                      setTtsStatus('Playing (server voice)');
+                      return;
+                    } catch (decodeErr) {
+                      console.warn('WebAudio decodeAudioData failed on iOS, falling back to <audio>', decodeErr);
+                      try { ctx.close(); } catch (e) {}
+                    }
+                  }
+                } catch (e) {
+                  console.warn('WebAudio playback attempt failed', e);
+                }
+              }
+
+              // Fallback to audio element playback for non-iOS or if WebAudio failed
               if (audioEl) { audioEl.pause(); try { URL.revokeObjectURL(audioEl.src); } catch (e) {} }
               audioEl = new Audio(blobUrl);
               audioEl.onended = () => {

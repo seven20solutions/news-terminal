@@ -3454,7 +3454,49 @@
                 await audioEl.play();
               } catch (playErr) {
                 console.warn('audioEl.play() failed in playArrayBufferFully', playErr);
-                // If play is blocked, reject so caller can fallback
+                // Attempt to open the blob in a pre-opened popup (if available)
+                try {
+                  if (typeof ttsPopupWindow !== 'undefined' && ttsPopupWindow && !ttsPopupWindow.closed) {
+                    try {
+                      ttsPopupWindow.document.open();
+                      ttsPopupWindow.document.write(`<!doctype html><meta charset="utf-8"><title>TTS Audio</title><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;">` +
+                        `<audio controls autoplay src="${blobUrl}" style="width:100%;max-width:640px"></audio>` +
+                        `<script>window.addEventListener('unload',()=>{try{URL.revokeObjectURL('${blobUrl}')}catch(e){}})</script></body>`);
+                      ttsPopupWindow.document.close();
+                      return resolve();
+                    } catch (e) {
+                      try { ttsPopupWindow.location.href = blobUrl; return resolve(); } catch (e2) { /* ignore */ }
+                    }
+                  }
+                } catch (e) { /* ignore */ }
+
+                // Popup not available — fallback: try share/save/manual player
+                try {
+                  const shared = await shareBlobIfPossible(blob, 'tts-audio.mp3');
+                  if (shared) return resolve();
+                } catch (e) { /* ignore */ }
+                try {
+                  const saved = await saveBlobToFile(blob, 'tts-audio.mp3');
+                  if (saved) return resolve();
+                } catch (e) { /* ignore */ }
+                try {
+                  const manualAudio = document.createElement('audio');
+                  manualAudio.controls = true;
+                  manualAudio.src = blobUrl;
+                  manualAudio.style.width = '100%';
+                  manualAudio.id = 'reader-manual-audio';
+                  const parent = document.getElementById('article-audio') || document.getElementById('article-body');
+                  if (parent) {
+                    const prev = document.getElementById('reader-manual-audio');
+                    if (prev) prev.remove();
+                    parent.appendChild(manualAudio);
+                  } else {
+                    document.body.appendChild(manualAudio);
+                  }
+                  return resolve();
+                } catch (e) { /* ignore */ }
+
+                // If all fallbacks fail, reject so caller can try other paths
                 return reject(playErr);
               }
             } catch (e) {

@@ -2,8 +2,8 @@
 // Minimal TTS proxy using OpenAI TTS — no dependencies
 // Usage: OPENAI_API_KEY=sk-... node server/tts-server.js
 
-const http = require('http');
-const { URL } = require('url');
+import http from 'http';
+import { URL } from 'url';
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8006;
 const OPENAI_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || process.env.OPENAI || null;

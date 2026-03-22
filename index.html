@@ -3189,25 +3189,48 @@
           ttsListen.disabled = false;
         }
 
+        // Platform preference: prefer OS/browser voices on iOS, prefer server/OpenAI on desktop.
+        const isIosPlatform = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+
         ttsListen.addEventListener('click', async () => {
           const text = extractArticleText();
           if (!text) { setTtsStatus('No article text found'); return; }
-          // Unlock playback on some platforms (Safari/iOS requires a user gesture)
           try { unlockAudioPlayback(); } catch (e) { /* ignore */ }
-          // If user has provided an OpenAI key in the app settings, prefer server TTS
-          try {
-            if (state && state.hasOpenAiKey) {
-              await playWithServerTTS(text);
-              return;
+
+          if (isIosPlatform) {
+            // On iOS prefer the OS/browser voice (Web Speech API) for the most
+            // natural integration with the platform. Use chunked playback to
+            // avoid long-utterance issues.
+            if (usingWebSpeech) {
+              try {
+                await playTextChunks(text);
+                return;
+              } catch (err) {
+                console.warn('iOS browser TTS failed, falling back to server TTS', err);
+                await playWithServerTTS(text);
+                return;
+              }
             }
-          } catch (e) {
-            // if state is not available for some reason, continue to client TTS
-            console.warn('Unable to read state for TTS preference', e);
+            // If Web Speech isn't available, fall back to server TTS.
+            await playWithServerTTS(text);
+            return;
           }
-          // Fallback: prefer browser TTS for quick playback
+
+          // Desktop: prefer server-backed TTS (OpenAI or local /api/tts). If that
+          // fails or is unavailable, fall back to the browser's Web Speech API.
+          try {
+            await playWithServerTTS(text);
+            return;
+          } catch (err) {
+            console.warn('Server TTS failed on desktop, falling back to browser TTS', err);
+          }
+
           if (usingWebSpeech) {
             const ok = playWithWebSpeech(text);
-            if (!ok) await playWithServerTTS(text);
+            if (!ok) {
+              // As a last resort, try server TTS again (it may succeed for small chunks)
+              await playWithServerTTS(text);
+            }
           } else {
             await playWithServerTTS(text);
           }

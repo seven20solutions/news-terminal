@@ -3354,7 +3354,7 @@
           return [words.slice(0, half).join(' '), words.slice(half).join(' ')];
         }
 
-        async function fetchTtsArrayBuffer(text, signal) {
+        async function fetchTtsArrayBuffer(text, outerSignal) {
           const endpoints = [
             'https://api.openai.com/v1/audio/speech',
             '/api/tts',
@@ -3363,6 +3363,19 @@
           const safeKey = (state.openAiKey || '').trim().replace(/[^\x00-\x7F]/g, '');
           for (let i = 0; i < endpoints.length; i += 1) {
             const url = endpoints[i];
+            // local controller so we can abort body download if headers show it's too large
+            const localController = new AbortController();
+            const signal = localController.signal;
+            // if outerSignal aborts, abort our local fetch
+            let outerAbortHandler = null;
+            if (outerSignal) {
+              if (outerSignal.aborted) {
+                localController.abort();
+              } else {
+                outerAbortHandler = () => localController.abort();
+                try { outerSignal.addEventListener('abort', outerAbortHandler); } catch (e) { /* ignore */ }
+              }
+            }
             try {
               let headers = { 'Content-Type': 'application/json' };
               let bodyPayload = null;
@@ -3397,11 +3410,56 @@
                 console.warn(`TTS provider returned non-audio response from ${url}:`, contentType, bodyText.slice(0, 512));
                 continue;
               }
+
+              // If server advertises a Content-Length header and it's too large,
+              // abort downloading the body and signal the caller to split earlier.
+              const contentLengthHeader = res.headers.get('Content-Length') || res.headers.get('content-length');
+              const advertised = contentLengthHeader ? parseInt(contentLengthHeader, 10) : NaN;
+              if (!Number.isNaN(advertised) && advertised > MAX_TTS_BYTES) {
+                try { localController.abort(); } catch (e) { /* ignore */ }
+                return { tooLarge: true, size: advertised };
+              }
+
+              // No reliable Content-Length; read a small prefix of the body stream to estimate
+              // If body is a ReadableStream, attempt to read first chunk to check size progressively
+              if (res.body && typeof res.body.getReader === 'function') {
+                const reader = res.body.getReader();
+                // read up to MAX_TTS_BYTES + 1 bytes into a buffer
+                let received = 0;
+                const chunks = [];
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  chunks.push(value);
+                  received += value.length || value.byteLength || 0;
+                  if (received > MAX_TTS_BYTES) {
+                    // too large — cancel the stream and indicate to caller
+                    try { await reader.cancel(); } catch (e) {}
+                    try { localController.abort(); } catch (e) {}
+                    return { tooLarge: true, size: received };
+                  }
+                }
+                // concatenate chunks to single ArrayBuffer
+                const total = chunks.reduce((sum, c) => sum + (c.length || c.byteLength || 0), 0);
+                const buffer = new Uint8Array(total);
+                let offset = 0;
+                for (const c of chunks) {
+                  buffer.set(c, offset);
+                  offset += (c.length || c.byteLength || 0);
+                }
+                return { arrayBuffer: buffer.buffer, contentType };
+              }
+
+              // Fallback: read full body (no choice)
               const arrayBuffer = await res.arrayBuffer();
               return { arrayBuffer, contentType };
             } catch (err) {
               if (err.name === 'AbortError') throw err;
               console.warn('TTS fetch error for', url, err);
+            } finally {
+              if (outerAbortHandler && outerSignal) {
+                try { outerSignal.removeEventListener('abort', outerAbortHandler); } catch (e) {}
+              }
             }
           }
           throw new Error('All TTS endpoints failed');

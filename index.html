@@ -2865,6 +2865,43 @@
         const usingWebSpeech = 'speechSynthesis' in window && !!window.speechSynthesis;
         let ttsChunkAbort = false;
 
+        // Workaround to unlock audio playback on platforms that require a
+        // user gesture. Call this synchronously from the click handler.
+        function unlockAudioPlayback() {
+          try {
+            // Try AudioContext resume + a tiny silent buffer
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+              const ctx = new AudioCtx();
+              if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+                ctx.resume().catch(() => {});
+              }
+              try {
+                const buffer = ctx.createBuffer(1, 1, 22050);
+                const src = ctx.createBufferSource();
+                src.buffer = buffer;
+                src.connect(ctx.destination);
+                src.start(0);
+                setTimeout(() => { try { src.stop?.(); ctx.close?.(); } catch (e) {} }, 500);
+              } catch (e) {
+                try { ctx.close && ctx.close(); } catch (e) {}
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+          try {
+            // Also try to play a tiny silent Audio element
+            const a = document.createElement('audio');
+            // small silent data URI (very short) - may not be supported everywhere
+            a.src = 'data:audio/mp3;base64,SUQzAwAAAAAA';
+            a.muted = true;
+            a.play().catch(() => {});
+          } catch (e) {
+            // ignore
+          }
+        }
+
         function setTtsStatus(text) { ttsStatus.textContent = text || ''; }
 
         function extractArticleText() {
@@ -3116,6 +3153,8 @@
         ttsListen.addEventListener('click', async () => {
           const text = extractArticleText();
           if (!text) { setTtsStatus('No article text found'); return; }
+          // Unlock playback on some platforms (Safari/iOS requires a user gesture)
+          try { unlockAudioPlayback(); } catch (e) { /* ignore */ }
           // If user has provided an OpenAI key in the app settings, prefer server TTS
           try {
             if (state && state.hasOpenAiKey) {

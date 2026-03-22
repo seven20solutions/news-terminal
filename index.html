@@ -3520,6 +3520,54 @@
           });
         }
 
+        // Save a Blob to disk (using showSaveFilePicker when available, else anchor download)
+        async function saveBlobToFile(blob, filename = 'tts-audio.mp3') {
+          try {
+            if (window.showSaveFilePicker) {
+              const handle = await window.showSaveFilePicker({
+                suggestedName: filename,
+                types: [{ description: 'Audio file', accept: { [blob.type || 'audio/mpeg']: ['.mp3'] } }],
+              });
+              const writable = await handle.createWritable();
+              await writable.write(blob);
+              await writable.close();
+              return true;
+            }
+          } catch (e) {
+            // fall through to anchor download
+            console.warn('showSaveFilePicker failed', e);
+          }
+          try {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+              try { URL.revokeObjectURL(url); } catch (e) {}
+              try { a.remove(); } catch (e) {}
+            }, 60000);
+            return true;
+          } catch (e) {
+            console.warn('anchor download failed', e);
+            return false;
+          }
+        }
+
+        async function shareBlobIfPossible(blob, filename = 'tts-audio.mp3') {
+          try {
+            if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: blob.type || 'audio/mpeg' })] })) {
+              const file = new File([blob], filename, { type: blob.type || 'audio/mpeg' });
+              await navigator.share({ files: [file], title: 'TTS audio' });
+              return true;
+            }
+          } catch (e) {
+            console.warn('navigator.share failed', e);
+          }
+          return false;
+        }
+
         // Recursive adaptive playback: fetch, measure, split if needed
         async function playAdaptiveTts(text) {
           if (!text || ttsChunkAbort) return;

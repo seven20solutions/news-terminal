@@ -3215,6 +3215,12 @@
         ttsListen.addEventListener('click', async () => {
           const text = extractArticleText();
           if (!text) { setTtsStatus('No article text found'); return; }
+          // Pre-open a popup synchronously to avoid popup blockers when we
+          // later open the generated audio blob there. Keep reference in
+          // `ttsPopupWindow` so openBlobInPopup can reuse it.
+          try {
+            try { ttsPopupWindow = ttsPopupWindow && !ttsPopupWindow.closed ? ttsPopupWindow : window.open('', '_blank', 'noopener'); } catch (e) { ttsPopupWindow = null; }
+          } catch (e) { ttsPopupWindow = null; }
           // Unlock playback on some platforms (Safari/iOS requires a user gesture)
           try { unlockAudioPlayback(); } catch (e) { /* ignore */ }
           // If user has provided an OpenAI key in the app settings, prefer server TTS

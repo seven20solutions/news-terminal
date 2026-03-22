@@ -2950,13 +2950,14 @@
               let bodyPayload = null;
 
               if (url.includes('api.openai.com')) {
-                // Build OpenAI-compatible TTS request. Adjust model/voice as needed.
+                // Build OpenAI-compatible TTS request. Request MP3 for maximum
+                // compatibility with iOS Safari. Adjust model/voice as needed.
                 headers = {
                   'Content-Type': 'application/json',
                   Accept: 'audio/mpeg',
                   Authorization: `Bearer ${safeKey}`,
                 };
-                bodyPayload = JSON.stringify({ model: 'gpt-4o-mini-tts', input: text });
+                bodyPayload = JSON.stringify({ model: 'gpt-4o-mini-tts', input: text, format: 'mp3', voice: 'alloy' });
               } else {
                 // Generic local/proxy TTS endpoint shape
                 const bodyObj = { text };
@@ -3018,6 +3019,17 @@
                 // try browser fallback
                 if (usingWebSpeech) {
                   try { playWithWebSpeech(text); return; } catch (e) { /* ignore */ }
+                }
+                // If browser TTS unavailable (iOS Safari may not provide it),
+                // try opening the audio blob in a new tab so the system player
+                // can attempt to play it.
+                try {
+                  if (blobUrl) {
+                    window.open(blobUrl, '_blank', 'noopener');
+                    return;
+                  }
+                } catch (e) {
+                  // ignore
                 }
                 return;
               }

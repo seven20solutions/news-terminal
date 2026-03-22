@@ -508,15 +508,23 @@
 
       .reader-actions {
         margin-top: 0.8rem;
-        gap: 0.65rem;
-        flex-wrap: wrap;
+        gap: 0.5rem;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
       }
 
       .reader-actions button {
-        flex: 1 1 120px;
-        min-width: 110px;
         border-radius: 0.6rem;
         font-family: "Topaz A1200", "IBM Plex Mono", monospace;
+        padding: 0.45rem 0.8rem;
+      }
+
+      .reader-tts-status {
+        margin-left: 0.5rem;
+        color: var(--muted);
+        font-size: 0.9rem;
       }
 
       .reader-toggle-row {
@@ -1031,9 +1039,13 @@
           <p>Select an article to read.</p>
         </div>
           <div class="menu-actions reader-actions">
-            <button id="reader-view" type="button">View Link (V)</button>
-            <button id="reader-download" type="button">Download (D)</button>
+            <button id="reader-listen" type="button">Listen</button>
+            <button id="reader-view" type="button">Link</button>
+            <button id="reader-download" type="button">Read</button>
             <button id="reader-share" type="button" aria-label="Share" disabled>Share</button>
+            <button id="reader-tts-pause" type="button" style="display:none">Pause</button>
+            <button id="reader-tts-stop" type="button" style="display:none">Stop</button>
+            <span id="tts-status" class="reader-tts-status" aria-live="polite"></span>
           </div>
           <div class="reader-toggle-row">
             <button id="reader-toggle" type="button" class="reader-toggle hidden">View raw (O)</button>
@@ -2797,12 +2809,210 @@
         });
       }
 
-      readerView.addEventListener("click", () => {
-        const link = readerView.dataset.link;
-        if (link) {
-          window.open(link, "_blank", "noopener");
+        readerView.addEventListener("click", () => {
+          const link = readerView.dataset.link;
+          if (link) {
+            window.open(link, "_blank", "noopener");
+          }
+        });
+
+        // Read button: open the article link in a new tab (same behavior as Link button)
+        const readButton = document.getElementById('reader-download');
+        readButton.addEventListener('click', () => {
+          const link = readerDownload.dataset.link;
+          if (!link) return;
+          window.open(link, '_blank', 'noopener');
+        });
+
+      // Text-to-Speech: progressive enhancement (Web Speech API fallback)
+      (function () {
+        const ttsListen = document.getElementById('reader-listen');
+        const ttsPause = document.getElementById('reader-tts-pause');
+        const ttsStop = document.getElementById('reader-tts-stop');
+        const ttsStatus = document.getElementById('tts-status');
+        let audioEl = null;
+        let speechUtterance = null;
+        const usingWebSpeech = 'speechSynthesis' in window && !!window.speechSynthesis;
+
+        function setTtsStatus(text) { ttsStatus.textContent = text || ''; }
+
+        function extractArticleText() {
+          if (!articleBody) return '';
+          return articleBody.innerText.trim();
         }
-      });
+
+        function pickPreferredVoice() {
+          const voices = speechSynthesis.getVoices() || [];
+          const saved = localStorage.getItem('ttsVoiceName');
+          if (saved) {
+            const v = voices.find((x) => x.name === saved);
+            if (v) return v;
+          }
+          // prefer 'Karen' if available (your reported voice)
+          const preferredNames = ['Karen'];
+          let v = voices.find((x) => preferredNames.includes(x.name));
+          if (!v) v = voices.find((x) => /^en/i.test(x.lang));
+          return v || null;
+        }
+
+        // Ensure voices loaded and persist preference if Karen exists
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+          speechSynthesis.onvoiceschanged = () => {
+            const voices = speechSynthesis.getVoices();
+            if (!localStorage.getItem('ttsVoiceName')) {
+              const found = voices.find((x) => x.name === 'Karen');
+              if (found) localStorage.setItem('ttsVoiceName', 'Karen');
+            }
+          };
+        }
+
+        function playWithWebSpeech(text) {
+          if (!usingWebSpeech) return false;
+          try {
+            window.speechSynthesis.cancel();
+            speechUtterance = new SpeechSynthesisUtterance(text);
+            const voice = pickPreferredVoice();
+            if (voice) {
+              speechUtterance.voice = voice;
+              // persist chosen voice if not already
+              if (!localStorage.getItem('ttsVoiceName')) {
+                try { localStorage.setItem('ttsVoiceName', voice.name); } catch (e) { /* ignore */ }
+              }
+            }
+            speechUtterance.rate = 1.0;
+            speechUtterance.pitch = 1.0;
+            speechUtterance.onstart = () => {
+              setTtsStatus('Playing (browser voice)');
+              ttsPause.style.display = '';
+              ttsStop.style.display = '';
+            };
+            speechUtterance.onend = () => {
+              setTtsStatus('');
+              ttsPause.style.display = 'none';
+              ttsStop.style.display = 'none';
+            };
+            window.speechSynthesis.speak(speechUtterance);
+            return true;
+          } catch (err) {
+            console.error('WebSpeech error', err);
+            return false;
+          }
+        }
+
+        async function playWithServerTTS(text) {
+          // Try relative endpoint first (/api/tts) then fallback to localhost:8006 if response is non-audio
+          const endpoints = ['/api/tts', 'http://localhost:8006/api/tts'];
+          setTtsStatus('Preparing audio…');
+          ttsListen.disabled = true;
+          for (let i = 0; i < endpoints.length; i += 1) {
+            const url = endpoints[i];
+            try {
+              const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text }),
+              });
+              const contentType = (res.headers.get('Content-Type') || '').toLowerCase();
+              if (!res.ok) {
+                const errBody = await res.text().catch(() => '');
+                console.warn(`TTS request to ${url} failed (${res.status})`, errBody);
+                // try next endpoint
+                continue;
+              }
+              if (!contentType.startsWith('audio/')) {
+                const bodyText = await res.text().catch(() => '');
+                console.warn(`TTS provider returned non-audio response from ${url}:`, contentType, bodyText.slice(0, 512));
+                // try next endpoint if available
+                continue;
+              }
+              const arrayBuffer = await res.arrayBuffer();
+              const blob = new Blob([arrayBuffer], { type: contentType || 'audio/mpeg' });
+              const blobUrl = URL.createObjectURL(blob);
+              if (audioEl) { audioEl.pause(); try { URL.revokeObjectURL(audioEl.src); } catch (e) {} }
+              audioEl = new Audio(blobUrl);
+              audioEl.onended = () => {
+                setTtsStatus('');
+                ttsPause.style.display = 'none';
+                ttsStop.style.display = 'none';
+                ttsListen.disabled = false;
+              };
+              audioEl.onplay = () => {
+                setTtsStatus('Playing (server voice)');
+                ttsPause.style.display = '';
+                ttsStop.style.display = '';
+              };
+              try {
+                await audioEl.play();
+                return; // success
+              } catch (playErr) {
+                console.error('Audio play failed', playErr);
+                setTtsStatus('Playback error');
+                showReaderToast('Playback failed: unsupported audio format');
+                ttsListen.disabled = false;
+                if (usingWebSpeech) {
+                  try { playWithWebSpeech(text); } catch (e) { /* ignore */ }
+                }
+                return;
+              }
+            } catch (err) {
+              console.warn('TTS fetch error for', url, err);
+              // try next endpoint
+            }
+          }
+          // All endpoints failed
+          setTtsStatus('TTS provider error');
+          showReaderToast('Unable to obtain audio from TTS provider');
+          ttsListen.disabled = false;
+        }
+
+        ttsListen.addEventListener('click', async () => {
+          const text = extractArticleText();
+          if (!text) { setTtsStatus('No article text found'); return; }
+          // If user has provided an OpenAI key in the app settings, prefer server TTS
+          try {
+            if (state && state.hasOpenAiKey) {
+              await playWithServerTTS(text);
+              return;
+            }
+          } catch (e) {
+            // if state is not available for some reason, continue to client TTS
+            console.warn('Unable to read state for TTS preference', e);
+          }
+          // Fallback: prefer browser TTS for quick playback
+          if (usingWebSpeech) {
+            const ok = playWithWebSpeech(text);
+            if (!ok) await playWithServerTTS(text);
+          } else {
+            await playWithServerTTS(text);
+          }
+        });
+
+        ttsPause.addEventListener('click', () => {
+          if (usingWebSpeech && window.speechSynthesis.speaking) {
+            if (window.speechSynthesis.paused) {
+              window.speechSynthesis.resume();
+              setTtsStatus('Resumed');
+            } else {
+              window.speechSynthesis.pause();
+              setTtsStatus('Paused');
+            }
+            return;
+          }
+          if (audioEl) {
+            if (audioEl.paused) { audioEl.play(); setTtsStatus('Playing'); }
+            else { audioEl.pause(); setTtsStatus('Paused'); }
+          }
+        });
+
+        ttsStop.addEventListener('click', () => {
+          if (usingWebSpeech) window.speechSynthesis.cancel();
+          if (audioEl) { audioEl.pause(); audioEl.currentTime = 0; }
+          setTtsStatus('');
+          ttsPause.style.display = 'none';
+          ttsStop.style.display = 'none';
+          ttsListen.disabled = false;
+        });
+      }());
 
       if (readerShare) {
         readerShare.addEventListener("click", async () => {

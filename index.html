@@ -3021,11 +3021,47 @@
                   try { playWithWebSpeech(text); return; } catch (e) { /* ignore */ }
                 }
                 // If browser TTS unavailable (iOS Safari may not provide it),
-                // try opening the audio blob in a new tab so the system player
-                // can attempt to play it.
+                // try a few fallbacks so the user can play the audio manually.
                 try {
                   if (blobUrl) {
-                    window.open(blobUrl, '_blank', 'noopener');
+                    console.warn('Attempting fallback: opening blob URL and inserting a manual audio control.');
+                    // Open in a new tab/window (may be blocked by some browsers)
+                    try { window.open(blobUrl, '_blank', 'noopener'); } catch (e) { /* ignore */ }
+
+                    // Create a temporary visible audio control so the user can tap to play
+                    try {
+                      const manualAudio = document.createElement('audio');
+                      manualAudio.controls = true;
+                      manualAudio.src = blobUrl;
+                      manualAudio.style.width = '100%';
+                      manualAudio.id = 'reader-manual-audio';
+                      // Insert into articleAudio if available, otherwise into articleBody
+                      const parent = document.getElementById('article-audio') || document.getElementById('article-body');
+                      if (parent) {
+                        // Remove any previous manual audio element
+                        const prev = document.getElementById('reader-manual-audio');
+                        if (prev) prev.remove();
+                        parent.appendChild(manualAudio);
+                      } else {
+                        document.body.appendChild(manualAudio);
+                      }
+                    } catch (e) { /* ignore */ }
+
+                    // Also try creating and clicking an anchor to force open/download
+                    try {
+                      const a = document.createElement('a');
+                      a.href = blobUrl;
+                      a.target = '_blank';
+                      a.rel = 'noopener';
+                      // Some browsers ignore download; still try it
+                      a.download = 'tts-audio.mp3';
+                      a.style.display = 'none';
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                    } catch (e) { /* ignore */ }
+
+                    showReaderToast('Audio playback failed — opened manual player / download.');
                     return;
                   }
                 } catch (e) {

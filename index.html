@@ -3511,7 +3511,42 @@
                 await audioEl.play();
               } catch (playErr) {
                 console.warn('audioEl.play() failed in playArrayBufferFully', playErr);
-                // If play is blocked, reject so caller can fallback
+                // Attempt to offer the user the file so Safari can open it externally.
+                try {
+                  const blob = new Blob([arrayBuffer], { type: contentType || 'audio/mpeg' });
+                  // Try native share first (mobile)
+                  try {
+                    const shared = await shareBlobIfPossible(blob, 'tts-audio.mp3');
+                    if (shared) return resolve();
+                  } catch (e) { /* ignore */ }
+                  // Then try save file picker / anchor download
+                  try {
+                    const saved = await saveBlobToFile(blob, 'tts-audio.mp3');
+                    if (saved) return resolve();
+                  } catch (e) { /* ignore */ }
+                  // Fallback: open blob URL in new tab so system player can try
+                  try {
+                    const tmpUrl = URL.createObjectURL(new Blob([arrayBuffer], { type: contentType || 'audio/mpeg' }));
+                    window.open(tmpUrl, '_blank', 'noopener');
+                    // also insert manual audio control
+                    const manualAudio = document.createElement('audio');
+                    manualAudio.controls = true;
+                    manualAudio.src = tmpUrl;
+                    manualAudio.style.width = '100%';
+                    manualAudio.id = 'reader-manual-audio';
+                    const parent = document.getElementById('article-audio') || document.getElementById('article-body');
+                    if (parent) {
+                      const prev = document.getElementById('reader-manual-audio');
+                      if (prev) prev.remove();
+                      parent.appendChild(manualAudio);
+                    } else {
+                      document.body.appendChild(manualAudio);
+                    }
+                    return resolve();
+                  } catch (e) { /* ignore */ }
+                } catch (e) { /* ignore */ }
+
+                // If all fallbacks fail, reject so caller can try other paths
                 return reject(playErr);
               }
             } catch (e) {

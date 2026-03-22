@@ -3016,29 +3016,56 @@
                 setTtsStatus('Playback error');
                 showReaderToast('Playback failed: unsupported audio format');
                 ttsListen.disabled = false;
-                // try browser fallback
+
+                // 1) Try browser Web Speech fallback
                 if (usingWebSpeech) {
                   try { playWithWebSpeech(text); return; } catch (e) { /* ignore */ }
                 }
-                // If browser TTS unavailable (iOS Safari may not provide it),
-                // try a few fallbacks so the user can play the audio manually.
+
+                // 2) Try WebAudio decoding/playback (may succeed where <audio> fails)
+                try {
+                  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                  if (AudioCtx && typeof ctx === 'undefined') {
+                    const ctx = new AudioCtx();
+                    if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+                      await ctx.resume();
+                    }
+                    try {
+                      // arrayBuffer is in scope from earlier response
+                      const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
+                      const src = ctx.createBufferSource();
+                      src.buffer = decoded;
+                      src.connect(ctx.destination);
+                      src.start(0);
+                      // Wire stop control
+                      if (ttsStop) {
+                        ttsStop.style.display = '';
+                        ttsStop.onclick = () => { try { src.stop(); } catch (e) {}; try { ctx.close(); } catch (e) {}; setTtsStatus(''); ttsStop.style.display='none'; };
+                      }
+                      setTtsStatus('Playing (server voice)');
+                      return;
+                    } catch (decodeErr) {
+                      console.warn('WebAudio decodeAudioData failed', decodeErr);
+                      try { ctx.close(); } catch (e) {}
+                    }
+                  }
+                } catch (e) {
+                  console.warn('WebAudio playback fallback failed', e);
+                }
+
+                // 3) Manual fallback: open blob, inject manual audio element, and trigger download
                 try {
                   if (blobUrl) {
                     console.warn('Attempting fallback: opening blob URL and inserting a manual audio control.');
-                    // Open in a new tab/window (may be blocked by some browsers)
                     try { window.open(blobUrl, '_blank', 'noopener'); } catch (e) { /* ignore */ }
-
-                    // Create a temporary visible audio control so the user can tap to play
                     try {
                       const manualAudio = document.createElement('audio');
                       manualAudio.controls = true;
                       manualAudio.src = blobUrl;
                       manualAudio.style.width = '100%';
                       manualAudio.id = 'reader-manual-audio';
-                      // Insert into articleAudio if available, otherwise into articleBody
                       const parent = document.getElementById('article-audio') || document.getElementById('article-body');
                       if (parent) {
-                        // Remove any previous manual audio element
                         const prev = document.getElementById('reader-manual-audio');
                         if (prev) prev.remove();
                         parent.appendChild(manualAudio);
@@ -3046,27 +3073,21 @@
                         document.body.appendChild(manualAudio);
                       }
                     } catch (e) { /* ignore */ }
-
-                    // Also try creating and clicking an anchor to force open/download
                     try {
                       const a = document.createElement('a');
                       a.href = blobUrl;
                       a.target = '_blank';
                       a.rel = 'noopener';
-                      // Some browsers ignore download; still try it
                       a.download = 'tts-audio.mp3';
                       a.style.display = 'none';
                       document.body.appendChild(a);
                       a.click();
                       a.remove();
                     } catch (e) { /* ignore */ }
-
                     showReaderToast('Audio playback failed — opened manual player / download.');
                     return;
                   }
-                } catch (e) {
-                  // ignore
-                }
+                } catch (e) { /* ignore */ }
                 return;
               }
             } catch (err) {

@@ -2864,6 +2864,29 @@
         let speechUtterance = null;
         const usingWebSpeech = 'speechSynthesis' in window && !!window.speechSynthesis;
         let ttsChunkAbort = false;
+        let ttsPopupWindow = null;
+
+        function openBlobInPopup(blob, blobUrl) {
+          try {
+            // Prefer a pre-opened popup to avoid popup blocking
+            const wnd = ttsPopupWindow && !ttsPopupWindow.closed ? ttsPopupWindow : window.open('', '_blank', 'noopener');
+            if (!wnd) return false;
+            // Write a minimal player page into the popup
+            try {
+              wnd.document.open();
+              wnd.document.write(`<!doctype html><meta charset="utf-8"><title>TTS Audio</title><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;">` +
+                `<audio controls autoplay src="${blobUrl}" style="width:100%;max-width:640px"></audio>` +
+                `<script>window.addEventListener('unload',()=>{try{URL.revokeObjectURL('${blobUrl}')}catch(e){}})</script></body>`);
+              wnd.document.close();
+            } catch (e) {
+              // if writing fails, navigate directly
+              try { wnd.location.href = blobUrl; } catch (e2) { return false; }
+            }
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
 
         // Workaround to unlock audio playback on platforms that require a
         // user gesture. Call this synchronously from the click handler.

@@ -3603,56 +3603,7 @@
           return false;
         }
 
-        // Convert an AudioBuffer to a WAV Blob (16-bit PCM)
-        function audioBufferToWavBlob(buffer) {
-          const numChannels = buffer.numberOfChannels;
-          const sampleRate = buffer.sampleRate;
-          const format = 1; // PCM
-          const bitsPerSample = 16;
-
-          // interleave
-          let length = buffer.length * numChannels * (bitsPerSample / 8);
-          const bufferLength = 44 + length;
-          const arrayBuffer = new ArrayBuffer(bufferLength);
-          const view = new DataView(arrayBuffer);
-
-          function writeString(view, offset, string) {
-            for (let i = 0; i < string.length; i++) {
-              view.setUint8(offset + i, string.charCodeAt(i));
-            }
-          }
-
-          let offset = 0;
-          writeString(view, offset, 'RIFF'); offset += 4;
-          view.setUint32(offset, 36 + length, true); offset += 4;
-          writeString(view, offset, 'WAVE'); offset += 4;
-          writeString(view, offset, 'fmt '); offset += 4;
-          view.setUint32(offset, 16, true); offset += 4; // subchunk1Size
-          view.setUint16(offset, format, true); offset += 2;
-          view.setUint16(offset, numChannels, true); offset += 2;
-          view.setUint32(offset, sampleRate, true); offset += 4;
-          view.setUint32(offset, sampleRate * numChannels * bitsPerSample / 8, true); offset += 4;
-          view.setUint16(offset, numChannels * bitsPerSample / 8, true); offset += 2;
-          view.setUint16(offset, bitsPerSample, true); offset += 2;
-          writeString(view, offset, 'data'); offset += 4;
-          view.setUint32(offset, length, true); offset += 4;
-
-          // write interleaved PCM samples
-          const channelData = [];
-          for (let ch = 0; ch < numChannels; ch++) channelData.push(buffer.getChannelData(ch));
-          let pos = offset;
-          for (let i = 0; i < buffer.length; i++) {
-            for (let ch = 0; ch < numChannels; ch++) {
-              let sample = Math.max(-1, Math.min(1, channelData[ch][i]));
-              // scale to 16-bit signed int
-              const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-              view.setInt16(pos, intSample, true);
-              pos += 2;
-            }
-          }
-
-          return new Blob([view], { type: 'audio/wav' });
-        }
+        // (removed WAV conversion — prefer saving/serving original MP3 blob to keep files as .mp3)
 
         // Recursive adaptive playback: fetch, measure, split if needed
         async function playAdaptiveTts(text) {

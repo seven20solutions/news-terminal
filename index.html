@@ -2855,7 +2855,7 @@
 
         
       // Text-to-Speech: progressive enhancement (Web Speech API fallback)
-      (function () {
+        (function () {
         const ttsListen = document.getElementById('reader-listen');
         const ttsPause = document.getElementById('reader-tts-pause');
         const ttsStop = document.getElementById('reader-tts-stop');
@@ -2863,6 +2863,7 @@
         let audioEl = null;
         let speechUtterance = null;
         const usingWebSpeech = 'speechSynthesis' in window && !!window.speechSynthesis;
+        let ttsChunkAbort = false;
 
         function setTtsStatus(text) { ttsStatus.textContent = text || ''; }
 
@@ -3143,15 +3144,17 @@
               window.speechSynthesis.pause();
               setTtsStatus('Paused');
             }
-            return;
-          }
-          if (audioEl) {
-            if (audioEl.paused) { audioEl.play(); setTtsStatus('Playing'); }
-            else { audioEl.pause(); setTtsStatus('Paused'); }
-          }
-        });
+          return;
+        }
+        if (audioEl) {
+          if (audioEl.paused) { audioEl.play(); setTtsStatus('Playing'); }
+          else { audioEl.pause(); setTtsStatus('Paused'); }
+        }
+      });
 
         ttsStop.addEventListener('click', () => {
+          // stop any ongoing chunked playback or single playback
+          ttsChunkAbort = true;
           if (usingWebSpeech) window.speechSynthesis.cancel();
           if (audioEl) { audioEl.pause(); audioEl.currentTime = 0; }
           setTtsStatus('');
@@ -3159,6 +3162,96 @@
           ttsStop.style.display = 'none';
           ttsListen.disabled = false;
         });
+
+        // Split text into sensible chunks (prefer sentence boundaries)
+        function splitTextIntoChunks(text, maxChars = 900) {
+          if (!text) return [];
+          // Normalize whitespace
+          const cleaned = text.replace(/\s+/g, ' ').trim();
+          if (cleaned.length <= maxChars) return [cleaned];
+          // Split into sentences
+          const sentences = cleaned.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [cleaned];
+          const chunks = [];
+          let current = '';
+          for (const s of sentences) {
+            if ((current + ' ' + s).trim().length <= maxChars) {
+              current = (current + ' ' + s).trim();
+            } else {
+              if (current) chunks.push(current);
+              if (s.trim().length > maxChars) {
+                // sentence itself too long — hard split by words
+                const words = s.trim().split(/\s+/);
+                let part = '';
+                for (const w of words) {
+                  if ((part + ' ' + w).trim().length <= maxChars) {
+                    part = (part + ' ' + w).trim();
+                  } else {
+                    if (part) chunks.push(part);
+                    part = w;
+                  }
+                }
+                if (part) {
+                  chunks.push(part);
+                  current = '';
+                } else {
+                  current = '';
+                }
+              } else {
+                current = s.trim();
+              }
+            }
+          }
+          if (current) chunks.push(current);
+          return chunks;
+        }
+
+        // Browser WebSpeech wrapper that returns a Promise resolved on end/cancel
+        function playWebSpeechChunk(text) {
+          return new Promise((resolve) => {
+            if (!usingWebSpeech) return resolve(false);
+            try {
+              window.speechSynthesis.cancel();
+              const utter = new SpeechSynthesisUtterance(text);
+              const voice = pickPreferredVoice();
+              if (voice) utter.voice = voice;
+              utter.rate = 1.0;
+              utter.pitch = 1.0;
+              utter.onstart = () => { setTtsStatus('Playing (browser voice)'); ttsPause.style.display = ''; ttsStop.style.display = ''; };
+              utter.onend = () => { setTtsStatus(''); ttsPause.style.display = 'none'; ttsStop.style.display = 'none'; resolve(true); };
+              utter.onerror = () => { resolve(false); };
+              speechUtterance = utter;
+              window.speechSynthesis.speak(utter);
+            } catch (e) { console.warn('playWebSpeechChunk error', e); resolve(false); }
+          });
+        }
+
+        // High-level chunked playback: uses server TTS when key present, otherwise browser TTS
+        async function playTextChunks(text) {
+          const chunks = splitTextIntoChunks(text, 900);
+          if (!chunks.length) return;
+          ttsChunkAbort = false;
+          for (let i = 0; i < chunks.length; i += 1) {
+            if (ttsChunkAbort) break;
+            const chunk = chunks[i];
+            try {
+              if (state && state.hasOpenAiKey) {
+                // server TTS (playWithServerTTS handles playback and returns when done)
+                await playWithServerTTS(chunk);
+              } else {
+                // Browser TTS fallback that returns when chunk finishes
+                const ok = await playWebSpeechChunk(chunk);
+                if (!ok) {
+                  // if browser fails, try server anyway
+                  await playWithServerTTS(chunk);
+                }
+              }
+            } catch (e) {
+              console.warn('Chunk playback error', e);
+            }
+            // small pause between chunks to avoid concat issues
+            await new Promise((r) => setTimeout(r, 250));
+          }
+        }
       }());
 
         if (readerShare) {

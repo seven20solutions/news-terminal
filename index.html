@@ -2930,44 +2930,67 @@
         }
 
         async function playWithServerTTS(text) {
-          // Try relative endpoint first (/api/tts) then fallback to localhost:8006 if response is non-audio
-          const endpoints = ['/api/tts', 'http://localhost:8006/api/tts'];
+          // Try OpenAI audio endpoint first, then fall back to any local/proxied endpoints
+          const endpoints = [
+            'https://api.openai.com/v1/audio/speech',
+            '/api/tts',
+            'http://localhost:8006/api/tts',
+          ];
+
           setTtsStatus('Preparing audio…');
           ttsListen.disabled = true;
+
+          // sanitize OpenAI key similar to cleanWithOpenAI
+          const safeKey = (state.openAiKey || '').trim().replace(/[^\x00-\x7F]/g, '');
+
           for (let i = 0; i < endpoints.length; i += 1) {
             const url = endpoints[i];
             try {
-              // Build JSON body; include per-request OpenAI key if the user has saved one
-              const bodyObj = { text };
-              try {
-                if (state && state.hasOpenAiKey && state.openAiKey) {
-                  // Trim and strip non-ASCII characters to reduce odd characters
-                  const safe = (state.openAiKey || '').trim().replace(/[^^\x00-\x7F]/g, '').replace(/[^\x00-\x7F]/g, '');
-                  // Only include if non-empty after sanitization
-                  if (safe) bodyObj.openaiKey = safe;
+              let headers = { 'Content-Type': 'application/json' };
+              let bodyPayload = null;
+
+              if (url.includes('api.openai.com')) {
+                // Build OpenAI-compatible TTS request. Adjust model/voice as needed.
+                headers = {
+                  'Content-Type': 'application/json',
+                  Accept: 'audio/mpeg',
+                  Authorization: `Bearer ${safeKey}`,
+                };
+                bodyPayload = JSON.stringify({ model: 'gpt-4o-mini-tts', input: text });
+              } else {
+                // Generic local/proxy TTS endpoint shape
+                const bodyObj = { text };
+                try {
+                  if (state && state.hasOpenAiKey && state.openAiKey) {
+                    const safe = (state.openAiKey || '').trim().replace(/[^\x00-\x7F]/g, '');
+                    if (safe) bodyObj.openaiKey = safe;
+                  }
+                } catch (e) {
+                  // ignore
                 }
-              } catch (e) {
-                // don't fail TTS preparation if state is weird
+                headers = { 'Content-Type': 'application/json' };
+                bodyPayload = JSON.stringify(bodyObj);
               }
 
               const res = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(bodyObj),
+                headers,
+                body: bodyPayload,
               });
-              const contentType = (res.headers.get('Content-Type') || '').toLowerCase();
+
               if (!res.ok) {
                 const errBody = await res.text().catch(() => '');
                 console.warn(`TTS request to ${url} failed (${res.status})`, errBody);
-                // try next endpoint
-                continue;
+                continue; // try next endpoint
               }
+
+              const contentType = (res.headers.get('Content-Type') || '').toLowerCase();
               if (!contentType.startsWith('audio/')) {
                 const bodyText = await res.text().catch(() => '');
                 console.warn(`TTS provider returned non-audio response from ${url}:`, contentType, bodyText.slice(0, 512));
-                // try next endpoint if available
-                continue;
+                continue; // try next endpoint
               }
+
               const arrayBuffer = await res.arrayBuffer();
               const blob = new Blob([arrayBuffer], { type: contentType || 'audio/mpeg' });
               const blobUrl = URL.createObjectURL(blob);
@@ -2992,8 +3015,9 @@
                 setTtsStatus('Playback error');
                 showReaderToast('Playback failed: unsupported audio format');
                 ttsListen.disabled = false;
+                // try browser fallback
                 if (usingWebSpeech) {
-                  try { playWithWebSpeech(text); } catch (e) { /* ignore */ }
+                  try { playWithWebSpeech(text); return; } catch (e) { /* ignore */ }
                 }
                 return;
               }
@@ -3002,7 +3026,18 @@
               // try next endpoint
             }
           }
-          // All endpoints failed
+
+          // All endpoints failed — try browser TTS as a last resort
+          if (usingWebSpeech) {
+            try {
+              const ok = playWithWebSpeech(text);
+              if (ok) return;
+            } catch (e) {
+              console.warn('Browser TTS fallback failed', e);
+            }
+          }
+
+          // Final failure
           setTtsStatus('TTS provider error');
           showReaderToast('Unable to obtain audio from TTS provider');
           ttsListen.disabled = false;

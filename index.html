@@ -2907,10 +2907,23 @@
           for (let i = 0; i < endpoints.length; i += 1) {
             const url = endpoints[i];
             try {
+              // Build JSON body; include per-request OpenAI key if the user has saved one
+              const bodyObj = { text };
+              try {
+                if (state && state.hasOpenAiKey && state.openAiKey) {
+                  // Trim and strip non-ASCII characters to reduce odd characters
+                  const safe = (state.openAiKey || '').trim().replace(/[^^\x00-\x7F]/g, '').replace(/[^\x00-\x7F]/g, '');
+                  // Only include if non-empty after sanitization
+                  if (safe) bodyObj.openaiKey = safe;
+                }
+              } catch (e) {
+                // don't fail TTS preparation if state is weird
+              }
+
               const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text }),
+                body: JSON.stringify(bodyObj),
               });
               const contentType = (res.headers.get('Content-Type') || '').toLowerCase();
               if (!res.ok) {

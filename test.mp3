@@ -1,0 +1,18 @@
+HTTP/1.1 401 Unauthorized
+Access-Control-Allow-Methods: POST, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization
+Content-Type: text/plain
+Date: Sun, 22 Mar 2026 04:51:52 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Transfer-Encoding: chunked
+
+{
+  "error": {
+    "message": "Incorrect API key provided: sk-invalid. You can find your API key at https://platform.openai.com/account/api-keys.",
+    "type": "invalid_request_error",
+    "code": "invalid_api_key",
+    "param": null
+  },
+  "status": 401
+}
